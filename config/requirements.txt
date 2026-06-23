@@ -1,0 +1,25 @@
+# Production Dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+rapidfuzz>=3.5.0
+pydantic>=2.5.0
+pyahocorasick>=2.0.0
+rank-bm25>=0.2.2
+
+# Testing Dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
+
+# Code Quality Tools (Optional - for development)
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+isort>=5.12.0
+
+# Development Tools (Optional)
+ipython>=8.14.0
+ipdb>=0.13.13
+
+# Made with Bob
