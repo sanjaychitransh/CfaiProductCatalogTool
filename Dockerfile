@@ -12,7 +12,7 @@ RUN dnf install -y gcc && dnf clean all
 
 # Copy and install Python dependencies
 COPY config/requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
 FROM registry.access.redhat.com/ubi9/python-311:latest
@@ -23,7 +23,7 @@ USER 0
 WORKDIR /app
 
 # Copy Python packages from builder
-COPY --from=builder /opt/app-root/src/.local /opt/app-root/src/.local
+COPY --from=builder /usr/local /usr/local
 
 # Copy application code
 COPY src/ ./src/
@@ -31,7 +31,7 @@ COPY data/ ./data/
 COPY app.py .
 
 # Set environment variables for Code Engine
-ENV PATH=/opt/app-root/src/.local/bin:$PATH \
+ENV PATH=/usr/local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     USE_ENHANCED_MATCHER=true \
