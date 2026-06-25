@@ -1,6 +1,5 @@
-# Multi-stage build for IBM Code Engine deployment
-# Stage 1: Builder
-FROM registry.access.redhat.com/ubi9/python-311:latest AS builder
+# Single-stage build for IBM Code Engine deployment
+FROM registry.access.redhat.com/ubi9/python-311:latest
 
 # Switch to root for installations
 USER 0
@@ -12,18 +11,7 @@ RUN dnf install -y gcc && dnf clean all
 
 # Copy and install production-only Python dependencies
 COPY config/requirements-prod.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements-prod.txt
-
-# Stage 2: Runtime
-FROM registry.access.redhat.com/ubi9/python-311:latest
-
-# Switch to root for setup
-USER 0
-
-WORKDIR /app
-
-# Copy only installed packages from builder (avoids clobbering runtime Python)
-COPY --from=builder /install /usr/local
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # Copy application code and data
 COPY src/ ./src/
