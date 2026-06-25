@@ -48,9 +48,6 @@ USER 1001
 # Expose Code Engine default port
 EXPOSE 8080
 
-# Health check for Code Engine
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
-
 # Run with uvicorn for production
+# Note: Code Engine handles health checks via the /health endpoint
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
