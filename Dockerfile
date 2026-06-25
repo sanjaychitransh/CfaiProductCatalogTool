@@ -7,12 +7,12 @@ USER 0
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies (gcc needed for ahocorasick C extension)
 RUN dnf install -y gcc && dnf clean all
 
-# Copy and install Python dependencies
-COPY config/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy and install production-only Python dependencies
+COPY config/requirements-prod.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-prod.txt
 
 # Stage 2: Runtime
 FROM registry.access.redhat.com/ubi9/python-311:latest
@@ -22,16 +22,16 @@ USER 0
 
 WORKDIR /app
 
-# Copy Python packages from builder
-COPY --from=builder /usr/local /usr/local
+# Copy only installed packages from builder (avoids clobbering runtime Python)
+COPY --from=builder /install /usr/local
 
-# Copy application code
+# Copy application code and data
 COPY src/ ./src/
 COPY data/ ./data/
 COPY app.py .
 
 # Set environment variables for Code Engine
-ENV PATH=/usr/local/bin:$PATH \
+ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     USE_ENHANCED_MATCHER=true \
@@ -49,5 +49,4 @@ USER 1001
 EXPOSE 8080
 
 # Run with uvicorn for production
-# Note: Code Engine handles health checks via the /health endpoint
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
