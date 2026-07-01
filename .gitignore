@@ -7,3 +7,13 @@ htmlcov/
 .vscode/
 .idea/
 *.log
+
+# Private keys — never commit
+cfaiRS256.key
+cfaiRS256.key.pub
+
+# Local data (large / sensitive) — never commit
+data/
+
+# Local virtual environment — never commit
+env/
