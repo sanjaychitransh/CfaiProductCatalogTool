@@ -214,17 +214,4 @@ CfaiProductCatalogTool/
 │   └── utils/                      # Shared utilities
 └── data/                           # ⚠ NOT in source control — add locally before build
     └── product_match_dictionary.json
-```
 
----
-
-## Files Excluded from Source Control
-
-The following are listed in `.gitignore` and must **never** be committed:
-
-| Path | Reason |
-|------|--------|
-| `cfaiRS256.key` | Private RS256 JWT signing key |
-| `cfaiRS256.key.pub` | Public RS256 key |
-| `data/` | Product dictionary — baked into image at build time |
-| `env/` | Local Python virtual environment |
