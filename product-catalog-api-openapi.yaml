@@ -1,0 +1,84 @@
+openapi: 3.0.0
+info:
+  title: IBM Product Catalog API
+  description: API for searching and retrieving IBM product information
+  version: 1.0.0
+servers:
+  - url: https://cfaiproducts.2b06dgt5gcrj.us-south.codeengine.appdomain.cloud
+    description: Public API endpoint via IBM Cloud Code Engine
+
+paths:
+  /products/search:
+    get:
+      operationId: search_products
+      summary: Search products
+      description: Search for IBM products by query string (product code, name, or description)
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search term for finding products (e.g., product code, name, or keywords)
+          schema:
+            type: string
+          example: "5737-H33"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  match_type:
+                    type: string
+                    enum: [exact, partial, fuzzy]
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        product_code:
+                          type: string
+                        product_name:
+                          type: string
+                        confidence:
+                          type: number
+
+  /products/{SLC_CODE}:
+    get:
+      operationId: get_product
+      summary: Get product by code
+      description: Get detailed information about a specific IBM product by its SLC code
+      parameters:
+        - name: SLC_CODE
+          in: path
+          required: true
+          description: IBM product SLC code (e.g., 5737-H33)
+          schema:
+            type: string
+          example: "5737-H33"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product_code:
+                    type: string
+                  product_name:
+                    type: string
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+# Made with Bob
