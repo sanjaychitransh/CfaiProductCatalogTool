@@ -1,84 +1,438 @@
 openapi: 3.0.0
 info:
   title: IBM Product Catalog API
-  description: API for searching and retrieving IBM product information
-  version: 1.0.0
+  description: |
+    High-performance API for exact + fuzzy IBM product identification.
+
+    ## TLS Routing (v4)
+    When the highest-confidence search result belongs to a **TLS-owned product**,
+    `GET /products/search` returns a `TLSRedirectResponse` instead of the normal
+    product list.  The response signals that the conversation should be handed off
+    to the named TLS agent.
+
+    The **original behaviour** (no TLS check) is preserved at
+    `GET /v0/products/search` for fallback and comparison purposes.
+
+    ## Matching Strategy
+    - **Exact Match** — full alias equality or phrase containment (score = 1.0)
+    - **Fuzzy Match** — similarity-based with configurable threshold
+
+    ## Enhanced Search Stack
+    - Aho-Corasick: fast exact phrase matching
+    - BM25: weighted candidate retrieval
+    - RapidFuzz: accurate reranking
+    - N-gram: typo tolerance
+    - SLC_CODE grouping: deduplicated results
+  version: 4.0.0
+
 servers:
   - url: https://cfaiproducts.2b06dgt5gcrj.us-south.codeengine.appdomain.cloud
     description: Public API endpoint via IBM Cloud Code Engine
 
 paths:
+  # -----------------------------------------------------------------------
+  # PRIMARY — includes TLS intercept
+  # -----------------------------------------------------------------------
   /products/search:
     get:
       operationId: search_products
-      summary: Search products
-      description: Search for IBM products by query string (product code, name, or description)
+      summary: Search products (with TLS intercept)
+      tags:
+        - Search
+      description: |
+        Search for IBM products by query string.
+
+        **TLS Intercept:**
+        If the best match belongs to a TLS-owned product, this endpoint
+        returns a `TLSRedirectResponse` (`tls_product: true`) instead of
+        product names.  The caller should redirect the conversation to the
+        TLS agent named in the `assistant` field.
+
+        For non-TLS products the normal `SearchResponse` or
+        `LegacySearchResponse` is returned depending on the `format` parameter.
       parameters:
         - name: query
           in: query
           required: true
-          description: Search term for finding products (e.g., product code, name, or keywords)
+          description: Search term (product code, name, or keywords)
           schema:
             type: string
-          example: "5737-H33"
+          example: "AIX"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results (default 10, max 100)
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: threshold
+          in: query
+          required: false
+          description: Minimum fuzzy match score 0.0–1.0 (default 0.70)
+          schema:
+            type: number
+            format: float
+            default: 0.70
+            minimum: 0.0
+            maximum: 1.0
+        - name: fuzzy_limit
+          in: query
+          required: false
+          description: Maximum fuzzy candidates to evaluate (default 30)
+          schema:
+            type: integer
+            default: 30
+            minimum: 10
+            maximum: 100
+        - name: format
+          in: query
+          required: false
+          description: "'new' (enhanced, default) or 'legacy' (backward compatible)"
+          schema:
+            type: string
+            enum: [new, legacy]
+            default: new
       responses:
         '200':
-          description: Successful response
+          description: |
+            Successful response.
+
+            - **TLS product** → `TLSRedirectResponse` (`tls_product: true`)
+            - **Non-TLS product, new format** → `SearchResponse`
+            - **Non-TLS product, legacy format** → `LegacySearchResponse`
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  query:
-                    type: string
-                  match_type:
-                    type: string
-                    enum: [exact, partial, fuzzy]
-                  results:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        product_code:
-                          type: string
-                        product_name:
-                          type: string
-                        confidence:
-                          type: number
+                oneOf:
+                  - $ref: '#/components/schemas/TLSRedirectResponse'
+                  - $ref: '#/components/schemas/SearchResponse'
+                  - $ref: '#/components/schemas/LegacySearchResponse'
+              examples:
+                tls_product:
+                  summary: TLS product — redirect to TLS agent
+                  value:
+                    tls_product: true
+                    message: "This is a TLS product. Redirected to TLS agent."
+                    slc_code: "SCPA0"
+                    product_name: "AIX"
+                    assistant: "AIX (Support)"
+                non_tls_new:
+                  summary: Non-TLS product — new format
+                  value:
+                    query: "IBM Cloud Pak for Data"
+                    normalized_query: "ibm cloud pak for data"
+                    results:
+                      - score: 1.0
+                        confidence: 1.0
+                        product_code: "5737-H33"
+                        product_name: "IBM Cloud Pak for Data"
+                        matched_aliases: ["cloud pak for data"]
+                        match_types: ["exact_full"]
+                    execution_time_ms: 3.42
+                    result_count: 1
+        '500':
+          description: Internal server error (matcher not initialized)
+
+  # -----------------------------------------------------------------------
+  # SECONDARY — v0, original behaviour, NO TLS check
+  # -----------------------------------------------------------------------
+  /v0/products/search:
+    get:
+      operationId: search_products_v0
+      summary: Search products — v0 (no TLS check)
+      tags:
+        - Search (v0 — no TLS check)
+      description: |
+        **Secondary / fallback endpoint.**  Behaves exactly as
+        `/products/search` did before v4.0 — TLS-owned products are
+        **not** intercepted and all matches are returned as normal.
+
+        Use this endpoint to:
+        - Revert to / compare against the pre-TLS behaviour
+        - Debug TLS routing decisions
+        - Support clients that need the raw product list regardless of TLS ownership
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search term (product code, name, or keywords)
+          schema:
+            type: string
+          example: "5737-H33"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: threshold
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+            default: 0.70
+            minimum: 0.0
+            maximum: 1.0
+        - name: fuzzy_limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 30
+            minimum: 10
+            maximum: 100
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [new, legacy]
+            default: new
+      responses:
+        '200':
+          description: Successful search response (no TLS intercept)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SearchResponse'
+                  - $ref: '#/components/schemas/LegacySearchResponse'
+        '500':
+          description: Internal server error (matcher not initialized)
+
+  # -----------------------------------------------------------------------
+  # Products
+  # -----------------------------------------------------------------------
+  /products:
+    get:
+      operationId: list_products
+      summary: List all products
+      tags:
+        - Products
+      description: List unique products from the dictionary with pagination.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
 
   /products/{SLC_CODE}:
     get:
       operationId: get_product
-      summary: Get product by code
-      description: Get detailed information about a specific IBM product by its SLC code
+      summary: Get product by SLC code
+      tags:
+        - Products
+      description: Get detailed information about a specific IBM product by its SLC code.
       parameters:
         - name: SLC_CODE
           in: path
           required: true
-          description: IBM product SLC code (e.g., 5737-H33)
+          description: IBM product SLC code
           schema:
             type: string
           example: "5737-H33"
       responses:
         '200':
-          description: Successful response
+          description: Product information
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  product_code:
-                    type: string
-                  product_name:
-                    type: string
+                $ref: '#/components/schemas/ProductInfo'
         '404':
           description: Product not found
+
+  # -----------------------------------------------------------------------
+  # System
+  # -----------------------------------------------------------------------
+  /health:
+    get:
+      operationId: health_check
+      summary: Health check
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service health status
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+                $ref: '#/components/schemas/HealthResponse'
+
+  /stats:
+    get:
+      operationId: get_stats
+      summary: Matcher statistics
+      tags:
+        - System
+      responses:
+        '200':
+          description: Detailed matcher statistics
+
+components:
+  schemas:
+    # -----------------------------------------------------------------------
+    # TLS redirect (new in v4)
+    # -----------------------------------------------------------------------
+    TLSRedirectResponse:
+      type: object
+      description: |
+        Returned when the top-ranked result belongs to a TLS-owned product.
+        No product names are exposed — the caller should redirect to the TLS agent.
+      required:
+        - tls_product
+        - message
+        - slc_code
+        - assistant
+      properties:
+        tls_product:
+          type: boolean
+          description: Always `true` — signals a TLS product intercept
+          example: true
+        message:
+          type: string
+          description: Human-readable redirect notice
+          example: "This is a TLS product. Redirected to TLS agent."
+        slc_code:
+          type: string
+          description: Matched SLC code
+          example: "SCPA0"
+        product_name:
+          type: string
+          nullable: true
+          description: TLS product name
+          example: "AIX"
+        assistant:
+          type: string
+          description: Name of the TLS assistant to redirect to
+          example: "AIX (Support)"
+
+    # -----------------------------------------------------------------------
+    # Normal search responses
+    # -----------------------------------------------------------------------
+    ProductResult:
+      type: object
+      required: [score, confidence, product_code, matched_aliases, match_types]
+      properties:
+        score:
+          type: number
+          description: Raw match score (0.0–1.0)
+        confidence:
+          type: number
+          description: Adjusted confidence score (0.0–1.0)
+        product_code:
+          type: string
+          description: Unique product SLC code
+        product_name:
+          type: string
+          nullable: true
+        matched_aliases:
+          type: array
+          items:
+            type: string
+        match_types:
+          type: array
+          items:
+            type: string
+          description: "e.g. exact_full, exact_phrase, fuzzy"
+
+    SearchResponse:
+      type: object
+      required: [query, normalized_query, results, execution_time_ms, result_count]
+      properties:
+        query:
+          type: string
+        normalized_query:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductResult'
+        execution_time_ms:
+          type: number
+        result_count:
+          type: integer
+
+    LegacyProductResult:
+      type: object
+      properties:
+        score:
+          type: number
+        confidence:
+          type: number
+          nullable: true
+        product_code:
+          type: string
+        support_desc:
+          type: string
+          nullable: true
+        support_alias:
+          type: array
+          items:
+            type: string
+
+    LegacySearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegacyProductResult'
+
+    ProductInfo:
+      type: object
+      properties:
+        product_code:
+          type: string
+        product_name:
+          type: string
+          nullable: true
+
+    ProductListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        total_available:
+          type: integer
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductInfo'
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        matcher_loaded:
+          type: boolean
+        exact_aliases:
+          type: integer
+        fuzzy_aliases:
+          type: integer
 
 # Made with Bob
