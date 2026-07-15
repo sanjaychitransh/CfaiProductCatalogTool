@@ -86,20 +86,46 @@ class TLSChecker:
             "assistant": self._slc_to_assistant[slc_code],
         }
 
-    def check_results(self, results: list) -> Optional[dict]:
+    def check_results(self, results: list, score_tolerance: float = 0.01) -> Optional[dict]:
         """
-        Inspect the first (highest-confidence) result in *results*.
+        Check whether the query should be redirected to a TLS agent.
 
-        If its ``product_code`` maps to a TLS product, return the TLS
-        redirect payload.  Otherwise return ``None``.
+        Rules (in order):
+        1. If the top-ranked result is a TLS product → redirect.
+        2. If a lower-ranked result is a TLS product AND its score is within
+           ``score_tolerance`` of the top result's score (i.e. effectively a
+           tie) → redirect.  This handles the case where fuzzy ranking puts a
+           non-TLS product marginally above the true TLS match due to scoring
+           noise.
+        3. Otherwise → return None (proceed normally).
 
-        Only the top result is checked: if the best match is a TLS
-        product the query is considered TLS-owned.
+        A TLS product ranked clearly below the top result (score gap >
+        tolerance) is NOT treated as a match — the query belongs to the
+        non-TLS product that scored higher.
+
+        Parameters
+        ----------
+        results        : ranked list from identify_products (highest score first)
+        score_tolerance: max score gap from top result within which a TLS hit
+                         still triggers the intercept (default 0.01 = 1 point)
         """
         if not results:
             return None
-        top_code = results[0].get("product_code", "")
-        return self.check(top_code)
+
+        top_score = results[0].get("score", 0.0)
+
+        for result in results:
+            result_score = result.get("score", 0.0)
+
+            # Stop scanning once we've moved clearly below the top score
+            if top_score - result_score > score_tolerance:
+                break
+
+            hit = self.check(result.get("product_code", ""))
+            if hit is not None:
+                return hit
+
+        return None
 
 
 # Made with Bob

@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+tests/
+.env
+*.md
+README*
+.dockerignore
+config/requirements*.txt
+!config/requirements-prod.txt
