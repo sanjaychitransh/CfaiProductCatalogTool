@@ -3,16 +3,16 @@ TLS Routing Test Suite
 ======================
 Tests the /products/search endpoint against known TLS and non-TLS products.
 
-For TLS products   → expects { "tls_product": true, "slc_code": <code> }
-For non-TLS products → expects { "results": [...] } (NO tls_product field)
+For TLS products   → expects { "tls_product": true, "slc_code": <exact>, "assistant": <exact> }
+For non-TLS products → expects { "results": [...] } with the expected SLC at rank 1
 
 Usage
 -----
-# Against live IBM Cloud deployment (default)
+# Against local server (default)
 python tests/test_tls_routing.py
 
-# Against local server
-python tests/test_tls_routing.py --base-url http://localhost:8080
+# Against a different server
+python tests/test_tls_routing.py --base-url http://localhost:8081
 
 # Verbose (show full API response for every case)
 python tests/test_tls_routing.py --verbose
@@ -106,48 +106,48 @@ TLS_PRODUCTS = [
     ("Storage Fusion",                                  "SCSTX",   "Storage Fusion (Support)"),
 ]
 
-# (product_name, slc_code, assistant)
+# (product_name, slc_code)
 NON_TLS_PRODUCTS = [
-    ("API Connect",                                      "SAIQ2",  "API Connect (Support)"),
-    ("Aspera",                                           "SAIT9",  "Aspera (Support)"),
-    ("Business Automation Workflow",                     "SAIN8",  "Business Automation Workflow (Support)"),
-    ("CICS Transaction Server",                          "SCZJ2",  "CICS (Support)"),
-    ("Cloud Pak for AIOps",                              "SAJE7",  "CP4AIOps (Support)"),
-    ("Cloud Pak for Data",                               "SAAD9",  "Cloud Pak for Data (Support)"),
-    ("Cloud Pak for Integration",                        "SAJB2",  "Cloud Pak for Integration (Support)"),
-    ("Cloudera Data Platform Private Cloud",             "SABE2",  "Cloudera Data Platform (Support)"),
-    ("Db2 for z/OS",                                     "SAAI8",  "Db2 for zOS (Support)"),
-    ("Db2 Linux, Unix and Windows",                      "SAAA0",  "Db2 Linux, Unix and Windows (Support)"),
-    ("Engineering Requirements Management DOORS",        "SBIA7",  "Engineering Lifecycle Management (Support)"),
-    ("Engineering Workflow Management",                  "SBIA1",  "Engineering Lifecycle Management (Support)"),
-    ("Envizi ESG Suite",                                 "SBW03",  "Envizi (Support)"),
-    ("FileNet Content Manager",                          "SAIL4",  "FileNet Content Manager (Support)"),
-    ("Financial Transaction Manager",                    "SBFF3",  "Financial Transaction Manager (Support)"),
-    ("Guardium Data Protection",                         "SBSE2",  "Guardium Data Protection (Support)"),
-    ("IMS",                                              "SCZA1",  "IMS (Support)"),
-    ("Informix Dynamic Server",                          "SAAG3",  "Informix Dynamic Server (Support)"),
-    ("Instana Observability",                            "SAJG6",  "Instana (Support)"),
-    ("Jazz for Service Management DASH / TIP",           "SAID8",  "Jazz.net"),
-    ("MaaS360",                                          "SBSH2",  "MaaS360 (Support)"),
-    ("Maximo Asset Management",                          "SBIF8",  "Maximo Application Suite (Support)"),
-    ("Maximo Application Suite",                         "SBIK2",  "Maximo Application Suite (Support)"),
-    ("Netcool/OMNIbus",                                  "SAIC0",  "Netcool Omnibus (Support)"),
-    ("OpenPages",                                        "SBFD6",  "OpenPages (Support)"),
-    ("QRadar SIEM",                                      "SBSC3",  "QRadar SIEM (Support)"),
-    ("SPSS Statistics",                                  "SAAA9",  "SPSS (Support)"),
-    ("Safer Payments",                                   "SBFE4",  "Safer Payments (Support)"),
-    ("Sterling Order Management",                        "SBWI5",  "Sterling OMS (Support)"),
-    ("Turbonomic On-Premises",                           "SAJD9",  "Turbonomic (Support)"),
-    ("Verify Identity Access",                           "SBSD1",  "Verify (Support)"),
-    ("WebSphere Application Server",                     "SAIM8",  "WebSphere Application Server (Support)"),
-    ("Workload Scheduler",                               "SAIP6",  "Workload Scheduler (Support)"),
-    ("Spectrum Control",                                 "SCSA5",  "Spectrum Control (Support)"),
-    ("DevOps Deploy",                                    "SAIT2",  "DevOps Deploy (Support)"),
-    ("DataPower",                                        "SAII7",  "DataPower (Support)"),
-    ("Operational Decision Manager",                     "SAIP4",  "Operational Decision Manager (Support)"),
-    ("NS1 Connect",                                      "SBFI5",  "NS1 Connect (Support)"),
-    ("SevOne Network Performance Management",            "SAJG5",  "SevOne NPM (Support)"),
-    ("InfoSphere Information Server: Data Integration",  "SAAD0",  "DataStage (Support)"),
+    ("API Connect",                                      "SAIQ2"),
+    ("Aspera",                                           "SAIT9"),
+    ("Business Automation Workflow",                     "SAIN8"),
+    ("CICS Transaction Server",                          "SCZJ2"),
+    ("Cloud Pak for AIOps",                              "SAJE7"),
+    ("Cloud Pak for Data",                               "SAAD9"),
+    ("Cloud Pak for Integration",                        "SAJB2"),
+    ("Cloudera Data Platform Private Cloud",             "SABE2"),
+    ("Db2 for z/OS",                                     "SAAI8"),
+    ("Db2 Linux, Unix and Windows",                      "SAAA0"),
+    ("Engineering Requirements Management DOORS",        "SBIA7"),
+    ("Engineering Workflow Management",                  "SBIA1"),
+    ("Envizi ESG Suite",                                 "SBW03"),
+    ("FileNet Content Manager",                          "SAIL4"),
+    ("Financial Transaction Manager",                    "SBFF3"),
+    ("Guardium Data Protection",                         "SBSE2"),
+    ("IMS",                                              "SCZA1"),
+    ("Informix Dynamic Server",                          "SAAG3"),
+    ("Instana Observability",                            "SAJG6"),
+    ("Jazz for Service Management DASH / TIP",           "SAID8"),
+    ("MaaS360",                                          "SBSH2"),
+    ("Maximo Asset Management",                          "SBIF8"),
+    ("Maximo Application Suite",                         "SBIK2"),
+    ("Netcool/OMNIbus",                                  "SAIC0"),
+    ("OpenPages",                                        "SBFD6"),
+    ("QRadar SIEM",                                      "SBSC3"),
+    ("SPSS Statistics",                                  "SAAA9"),
+    ("Safer Payments",                                   "SBFE4"),
+    ("Sterling Order Management",                        "SBWI5"),
+    ("Turbonomic On-Premises",                           "SAJD9"),
+    ("Verify Identity Access",                           "SBSD1"),
+    ("WebSphere Application Server",                     "SAIM8"),
+    ("Workload Scheduler",                               "SAIP6"),
+    ("Spectrum Control",                                 "SCSA5"),
+    ("DevOps Deploy",                                    "SAIT2"),
+    ("DataPower",                                        "SAII7"),
+    ("Operational Decision Manager",                     "SAIP4"),
+    ("NS1 Connect",                                      "SBFI5"),
+    ("SevOne Network Performance Management",            "SAJG5"),
+    ("InfoSphere Information Server: Data Integration",  "SAAD0"),
 ]
 
 
@@ -160,7 +160,6 @@ class TestResult:
     product_name: str
     slc_code: str
     expected_type: str          # "tls" | "non_tls"
-    expected_assistant: str
     query: str
     passed: bool
     actual_type: str            # "tls" | "non_tls" | "error" | "no_results"
@@ -169,6 +168,7 @@ class TestResult:
     top_score: Optional[float]
     execution_ms: float
     error_msg: str = ""
+    pass_reason: str = ""
     raw_response: dict = field(default_factory=dict)
 
 
@@ -191,9 +191,8 @@ def call_api(base_url: str, query: str, timeout: int = 15) -> tuple[dict, float]
         return {"_exception": str(e)}, elapsed
 
 
-def run_test(base_url: str, product_name: str, slc_code: str,
-             expected_type: str, expected_assistant: str,
-             verbose: bool = False) -> TestResult:
+def run_tls_test(base_url: str, product_name: str, slc_code: str,
+                 expected_assistant: str) -> TestResult:
 
     query = product_name
     response, elapsed = call_api(base_url, query)
@@ -201,8 +200,7 @@ def run_test(base_url: str, product_name: str, slc_code: str,
     result = TestResult(
         product_name=product_name,
         slc_code=slc_code,
-        expected_type=expected_type,
-        expected_assistant=expected_assistant,
+        expected_type="tls",
         query=query,
         passed=False,
         actual_type="error",
@@ -213,7 +211,6 @@ def run_test(base_url: str, product_name: str, slc_code: str,
         raw_response=response,
     )
 
-    # Handle network / HTTP errors
     if "_exception" in response:
         result.error_msg = response["_exception"]
         return result
@@ -221,47 +218,98 @@ def run_test(base_url: str, product_name: str, slc_code: str,
         result.error_msg = f"HTTP {response['_http_error']}: {response.get('_body','')[:120]}"
         return result
 
-    # TLS response
     if response.get("tls_product") is True:
         result.actual_type = "tls"
         result.actual_slc = response.get("slc_code")
         result.actual_assistant = response.get("assistant")
 
-        if expected_type == "tls":
-            # Pass: got TLS redirect and it's the right SLC code
-            result.passed = (result.actual_slc == slc_code)
-            if not result.passed:
-                result.error_msg = (
-                    f"Wrong SLC: got {result.actual_slc} expected {slc_code}"
-                )
+        slc_match = (result.actual_slc == slc_code)
+        assistant_match = (result.actual_assistant == expected_assistant)
+
+        if slc_match and assistant_match:
+            result.passed = True
+            result.pass_reason = "exact SLC + exact assistant"
+        elif not slc_match:
+            result.error_msg = (
+                f"Wrong SLC: got '{result.actual_slc}' expected '{slc_code}' "
+                f"(assistant={result.actual_assistant})"
+            )
         else:
             result.error_msg = (
-                f"Expected normal result but got TLS redirect "
-                f"(slc={result.actual_slc}, assistant={result.actual_assistant})"
+                f"Wrong assistant: got '{result.actual_assistant}' "
+                f"expected '{expected_assistant}' (slc={result.actual_slc})"
             )
 
-    # Normal response
     elif "results" in response:
-        results = response["results"]
+        result.actual_type = "non_tls"
+        results_list = response["results"]
+        if results_list:
+            result.actual_slc = results_list[0].get("product_code")
+            result.top_score = results_list[0].get("score")
+        result.error_msg = (
+            f"Expected TLS redirect but got normal results "
+            f"(top={result.actual_slc}, score={result.top_score})"
+        )
+
+    else:
+        result.actual_type = "no_results"
+        result.error_msg = f"Unexpected response shape: {str(response)[:120]}"
+
+    return result
+
+
+def run_non_tls_test(base_url: str, product_name: str, slc_code: str) -> TestResult:
+
+    query = product_name
+    response, elapsed = call_api(base_url, query)
+
+    result = TestResult(
+        product_name=product_name,
+        slc_code=slc_code,
+        expected_type="non_tls",
+        query=query,
+        passed=False,
+        actual_type="error",
+        actual_slc=None,
+        actual_assistant=None,
+        top_score=None,
+        execution_ms=elapsed,
+        raw_response=response,
+    )
+
+    if "_exception" in response:
+        result.error_msg = response["_exception"]
+        return result
+    if "_http_error" in response:
+        result.error_msg = f"HTTP {response['_http_error']}: {response.get('_body','')[:120]}"
+        return result
+
+    if response.get("tls_product") is True:
+        result.actual_type = "tls"
+        result.actual_slc = response.get("slc_code")
+        result.actual_assistant = response.get("assistant")
+        result.error_msg = (
+            f"Expected normal result but got TLS redirect "
+            f"(slc={result.actual_slc}, assistant={result.actual_assistant})"
+        )
+
+    elif "results" in response:
+        results_list = response["results"]
         result.actual_type = "non_tls"
 
-        if results:
-            result.actual_slc = results[0].get("product_code")
-            result.top_score = results[0].get("score")
+        if results_list:
+            result.actual_slc = results_list[0].get("product_code")
+            result.top_score = results_list[0].get("score")
 
-        if expected_type == "non_tls":
-            # Pass: got normal results and the top SLC matches
-            result.passed = (result.actual_slc == slc_code)
-            if not result.passed:
-                got_name = results[0].get("product_name", "?") if results else "NO RESULTS"
-                result.error_msg = (
-                    f"Wrong top result: got {result.actual_slc} ({got_name}) "
-                    f"expected {slc_code}"
-                )
+        # PASS rule: expected SLC must be rank-1
+        if result.actual_slc == slc_code:
+            result.passed = True
+            result.pass_reason = "rank-1 exact SLC"
         else:
+            got_name = results_list[0].get("product_name", "?") if results_list else "NO RESULTS"
             result.error_msg = (
-                f"Expected TLS redirect but got normal results "
-                f"(top={result.actual_slc}, score={result.top_score})"
+                f"Wrong rank-1: got {result.actual_slc} ({got_name}), "
+                f"expected {slc_code}"
             )
 
     else:
@@ -272,16 +320,14 @@ def run_test(base_url: str, product_name: str, slc_code: str,
 
 
 def print_section(title: str, results: list[TestResult]):
-    """Print a formatted section of results."""
     passed = [r for r in results if r.passed]
-    failed = [r for r in results if not r.passed]
     win_rate = len(passed) / len(results) * 100 if results else 0
 
     status = "✅" if win_rate == 100 else ("⚠️" if win_rate >= 70 else "❌")
     print(f"\n{'─'*72}")
     print(f"  {status}  {title}")
     print(f"      Pass: {len(passed)}/{len(results)}  ({win_rate:.1f}%)")
-    print(f"{'─'*72}")
+    print("─"*72)
 
     for r in results:
         icon = "✓" if r.passed else "✗"
@@ -298,20 +344,20 @@ def main():
     parser = argparse.ArgumentParser(description="TLS Routing Test Suite")
     parser.add_argument(
         "--base-url",
-        default="https://cfai-product-catalog.2c0f20fvfl3u.us-south.codeengine.appdomain.cloud",
-        help="Base URL of the API"
+        default="http://localhost:8081",
+        help="Base URL of the API (default: http://localhost:8081)"
     )
     parser.add_argument("--verbose", action="store_true", help="Print raw responses")
     parser.add_argument("--output", help="Save JSON results to this file")
-    parser.add_argument("--delay", type=float, default=0.1,
-                        help="Seconds to wait between requests (default 0.1)")
+    parser.add_argument("--delay", type=float, default=0.0,
+                        help="Seconds to wait between requests (default 0.0)")
     args = parser.parse_args()
 
     print(f"\n{'═'*72}")
-    print(f"  TLS ROUTING TEST SUITE")
+    print(f"  TLS ROUTING TEST SUITE  (strict — no relaxations)")
     print(f"  Base URL : {args.base_url}")
-    print(f"  TLS cases: {len(TLS_PRODUCTS)}")
-    print(f"  Non-TLS  : {len(NON_TLS_PRODUCTS)}")
+    print(f"  TLS cases: {len(TLS_PRODUCTS)}  (exact SLC + exact assistant required)")
+    print(f"  Non-TLS  : {len(NON_TLS_PRODUCTS)}  (rank-1 exact SLC required)")
     print(f"{'═'*72}")
 
     all_results: list[TestResult] = []
@@ -320,66 +366,65 @@ def main():
     print("\n  Running TLS product tests…", flush=True)
     tls_results = []
     for name, slc, assistant in TLS_PRODUCTS:
-        r = run_test(args.base_url, name, slc, "tls", assistant, args.verbose)
+        r = run_tls_test(args.base_url, name, slc, assistant)
         tls_results.append(r)
         all_results.append(r)
-        dot = "." if r.passed else "F"
-        print(dot, end="", flush=True)
+        print("." if r.passed else "F", end="", flush=True)
         if args.verbose:
             print(f"\n  [{slc}] {name}")
-            print(f"    passed={r.passed}  actual_type={r.actual_type}  actual_slc={r.actual_slc}")
+            print(f"    passed={r.passed}  actual_slc={r.actual_slc}  actual_assistant={r.actual_assistant}")
             if r.error_msg:
                 print(f"    error: {r.error_msg}")
-        time.sleep(args.delay)
+        if args.delay:
+            time.sleep(args.delay)
 
     # ── Non-TLS products ──────────────────────────────────────────────────
     print("\n  Running non-TLS product tests…", flush=True)
     non_tls_results = []
-    for name, slc, assistant in NON_TLS_PRODUCTS:
-        r = run_test(args.base_url, name, slc, "non_tls", assistant, args.verbose)
+    for name, slc in NON_TLS_PRODUCTS:
+        r = run_non_tls_test(args.base_url, name, slc)
         non_tls_results.append(r)
         all_results.append(r)
-        dot = "." if r.passed else "F"
-        print(dot, end="", flush=True)
+        print("." if r.passed else "F", end="", flush=True)
         if args.verbose:
             print(f"\n  [{slc}] {name}")
-            print(f"    passed={r.passed}  actual_type={r.actual_type}  actual_slc={r.actual_slc}")
+            print(f"    passed={r.passed}  actual_slc={r.actual_slc}  score={r.top_score}")
             if r.error_msg:
                 print(f"    error: {r.error_msg}")
-        time.sleep(args.delay)
+        if args.delay:
+            time.sleep(args.delay)
 
     # ── Results ───────────────────────────────────────────────────────────
     print()
-    tls_pass, tls_total       = print_section("TLS PRODUCTS — expect redirect", tls_results)
-    non_tls_pass, non_tls_total = print_section("NON-TLS PRODUCTS — expect results", non_tls_results)
+    tls_pass, tls_total         = print_section("TLS PRODUCTS — expect exact redirect", tls_results)
+    non_tls_pass, non_tls_total = print_section("NON-TLS PRODUCTS — expect rank-1 result", non_tls_results)
 
     total_pass  = tls_pass + non_tls_pass
     total       = tls_total + non_tls_total
     overall_pct = total_pass / total * 100 if total else 0
 
     print(f"\n{'═'*72}")
-    print(f"  OVERALL SUMMARY")
+    print("  OVERALL SUMMARY  (strict)")
     print(f"{'═'*72}")
     print(f"  TLS products      : {tls_pass:>3}/{tls_total:<3}  ({tls_pass/tls_total*100:.1f}%)")
     print(f"  Non-TLS products  : {non_tls_pass:>3}/{non_tls_total:<3}  ({non_tls_pass/non_tls_total*100:.1f}%)")
-    print(f"  ─────────────────────────────")
+    print("  " + "─"*29)
     print(f"  TOTAL WIN RATE    : {total_pass:>3}/{total:<3}  ({overall_pct:.1f}%)")
     print(f"{'═'*72}")
 
-    # Failures summary
     failures = [r for r in all_results if not r.passed]
     if failures:
         print(f"\n  FAILURES ({len(failures)})")
-        print(f"  {'SLC':<12} {'Type':<8} {'Product':<45} Error")
-        print(f"  {'─'*12} {'─'*8} {'─'*45} {'─'*30}")
+        print(f"  {'SLC':<12} {'Type':<9} {'Product':<45} Error")
+        print("  " + "─"*12 + " " + "─"*9 + " " + "─"*45 + " " + "─"*35)
         for r in failures:
             tag = "[TLS]    " if r.expected_type == "tls" else "[non-TLS]"
             print(f"  {r.slc_code:<12} {tag} {r.product_name[:44]:<45} {r.error_msg[:60]}")
 
-    # Save JSON
     if args.output:
         output_data = {
             "base_url": args.base_url,
+            "strict": True,
             "summary": {
                 "tls_pass": tls_pass, "tls_total": tls_total,
                 "non_tls_pass": non_tls_pass, "non_tls_total": non_tls_total,
@@ -391,7 +436,6 @@ def main():
                     "product_name": r.product_name,
                     "slc_code": r.slc_code,
                     "expected_type": r.expected_type,
-                    "expected_assistant": r.expected_assistant,
                     "passed": r.passed,
                     "actual_type": r.actual_type,
                     "actual_slc": r.actual_slc,

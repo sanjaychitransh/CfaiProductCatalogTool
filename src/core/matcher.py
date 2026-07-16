@@ -257,51 +257,68 @@ class ProductMatcher:
     def exact_match(self, query: str) -> List[Tuple[str, float, str, List[Dict[str, str]]]]:
         """
         Perform exact matching with Aho-Corasick (if available) or fallback strategies.
-        Filters out short matches that don't have word boundaries.
-        
+
+        Filters applied:
+        - Short aliases (<=4 chars) require word boundaries to avoid substring noise.
+        - Phrase-containment aliases must cover at least MIN_COVERAGE_RATIO of the
+          query length. This prevents a very short generic alias (e.g. "vm", "z os")
+          from flooding results when the query is a long, specific product name.
+          A full exact match (alias == query) always passes regardless of length.
+
         Returns:
             List of (alias, score, match_type, products)
         """
         query_norm = self.clean_string(query)
         query_buf = self.buffer(query_norm)
+        query_len = max(len(query_norm), 1)
         matches: List[Tuple[str, float, str, List[Dict[str, str]]]] = []
         seen = set()
-        
+
+        # Minimum fraction of the query that a phrase-containment alias must cover.
+        # e.g. 0.40 means an alias must be at least 40% as long as the query.
+        # A full exact match (alias == query) is always accepted.
+        MIN_COVERAGE_RATIO = 0.40
+
+        def _coverage_ok(alias: str) -> bool:
+            """True when alias is long enough relative to the query."""
+            if alias == query_norm:
+                return True
+            return len(alias) / query_len >= MIN_COVERAGE_RATIO
+
         # Use Aho-Corasick if available (much faster)
         if self.use_enhanced and self.ac_automaton:
             for end_index, (alias, products) in self.ac_automaton.iter(query_norm):
                 if alias not in seen:
                     # For short aliases (<=4 chars), require word boundaries
-                    # This prevents "pda" from matching in "update" or "c" in "controller"
                     if len(alias) <= 4:
-                        # Check if alias appears as a complete word (with spaces around it)
                         alias_buf = self.buffer(alias)
                         if alias_buf not in query_buf:
                             continue
-                    
+                    # Reject aliases that cover too little of the query
+                    if not _coverage_ok(alias):
+                        continue
                     seen.add(alias)
                     matches.append((alias, 1.0, "exact_phrase", products))
         else:
-            # Fallback to original logic with word boundary check
-            # Strategy 1: Full exact match (O(1))
+            # Strategy 1: Full exact match (O(1)) — always accepted
             if query_norm in self.exact_index:
                 matches.append((query_norm, 1.0, "exact_full", self.exact_index[query_norm]))
                 seen.add(query_norm)
-            
+
             # Strategy 2: Phrase containment (alias in query)
             for alias, products in self.exact_phrases:
                 if alias not in seen:
-                    # For short aliases, require word boundaries
                     if len(alias) <= 4:
                         alias_buf = self.buffer(alias)
                         if alias_buf not in query_buf:
                             continue
                     elif self.buffer(alias) not in query_buf:
                         continue
-                    
+                    if not _coverage_ok(alias):
+                        continue
                     seen.add(alias)
                     matches.append((alias, 1.0, "exact_phrase", products))
-        
+
         # Sort by length (longer = more specific)
         matches.sort(key=lambda x: len(x[0]), reverse=True)
         return matches
@@ -608,15 +625,38 @@ class ProductMatcher:
             # Clean up temporary fields
             del item["best_match_alias"]
             del item["best_match_type"]
-            
+
             results.append(item)
-        
-        # Final ranking: exact-backed > confidence > score > alias count
+
+        # Compute alias_similarity for every result: highest ratio() between the
+        # normalised query and any of the product's matched aliases.
+        # This is used both for tie-breaking in final ranking AND by TLSChecker
+        # to decide whether a TLS product is "close enough" to the top result.
+        query_norm_for_rank = self.clean_string(query)
+
+        for item in results:
+            item["alias_similarity"] = max(
+                (fuzz.ratio(query_norm_for_rank, a) for a in item["matched_aliases"]),
+                default=0.0
+            )
+
+        # Final ranking: exact-backed > confidence > score > alias_similarity > alias count
+        #
+        # alias_similarity tie-breaker resolves cases where score and confidence are equal:
+        #   "storage fusion"  → alias "storage fusion" (sim=100) beats
+        #                        alias "storage fusion hci physical appliance" (sim=50)
+        #   "db2 for z/os"    → alias "db2 for z/os" (sim=100) beats alias "z os" (sim=40)
         def result_rank(item):
             has_exact = any(mt.startswith("exact") for mt in item["match_types"])
             exact_priority = 1 if has_exact else 0
-            return (exact_priority, item["confidence"], item["score"], len(item["matched_aliases"]))
-        
+            return (
+                exact_priority,
+                item["confidence"],
+                item["score"],
+                item["alias_similarity"],
+                len(item["matched_aliases"]),
+            )
+
         results.sort(key=result_rank, reverse=True)
         return results[:return_count]
 

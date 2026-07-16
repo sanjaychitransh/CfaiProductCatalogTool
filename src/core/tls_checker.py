@@ -86,39 +86,48 @@ class TLSChecker:
             "assistant": self._slc_to_assistant[slc_code],
         }
 
-    def check_results(self, results: list, score_tolerance: float = 0.01) -> Optional[dict]:
+    def check_results(self, results: list, sim_tolerance: float = 0.0) -> Optional[dict]:
         """
         Check whether the query should be redirected to a TLS agent.
 
+        Uses ALIAS_SIMILARITY (not raw score or confidence) for the tolerance
+        window.  alias_similarity is the best ratio() score between the query
+        and the product's matched aliases — it is the most precise signal for
+        "this result is actually about the query term" and is already computed
+        by identify_products() and stored on each result dict.
+
         Rules (in order):
         1. If the top-ranked result is a TLS product → redirect.
-        2. If a lower-ranked result is a TLS product AND its score is within
-           ``score_tolerance`` of the top result's score (i.e. effectively a
-           tie) → redirect.  This handles the case where fuzzy ranking puts a
-           non-TLS product marginally above the true TLS match due to scoring
-           noise.
+        2. If a lower-ranked result is a TLS product AND its alias_similarity
+           is within ``sim_tolerance`` of the top result's alias_similarity
+           (i.e. a genuine tie at the alias level) → redirect.
         3. Otherwise → return None (proceed normally).
 
-        A TLS product ranked clearly below the top result (score gap >
-        tolerance) is NOT treated as a match — the query belongs to the
-        non-TLS product that scored higher.
+        Why alias_similarity
+        --------------------
+        - Raw score: too coarse — short aliases inflate it.
+        - Confidence: still tied when many products share same penalties.
+        - alias_similarity: fine-grained — "cics transaction server" (sim=100)
+          vs "wca4z cics transaction server exec…" (sim=56) → clear separation.
+
+        Default tolerance is 0.0 (exact tie only).
 
         Parameters
         ----------
-        results        : ranked list from identify_products (highest score first)
-        score_tolerance: max score gap from top result within which a TLS hit
-                         still triggers the intercept (default 0.01 = 1 point)
+        results        : ranked list from identify_products (highest first)
+        sim_tolerance  : max alias_similarity gap within which a TLS hit still
+                         triggers the intercept (default 0.0 = exact sim tie)
         """
         if not results:
             return None
 
-        top_score = results[0].get("score", 0.0)
+        top_sim = results[0].get("alias_similarity", 0.0)
 
         for result in results:
-            result_score = result.get("score", 0.0)
+            result_sim = result.get("alias_similarity", 0.0)
 
-            # Stop scanning once we've moved clearly below the top score
-            if top_score - result_score > score_tolerance:
+            # Stop scanning once alias_similarity drops below the top
+            if top_sim - result_sim > sim_tolerance:
                 break
 
             hit = self.check(result.get("product_code", ""))
