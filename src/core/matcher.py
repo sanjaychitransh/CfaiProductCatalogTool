@@ -65,6 +65,8 @@ _PROTECTED_BIGRAMS: tuple = (
     ('z', 'os'),      # z/OS — arrives as "z os" after slash→space normalisation;
                       # protected so neither token is noise-stripped before
                       # replace_delimiter_terms rejoins them as "z_os"
+    ('was', 'for'),   # WAS = WebSphere Application Server; "was for <platform>"
+                      # must not have either token stripped (e.g. "was for z/os")
 )
 
 # Combined set removed from queries before matching
