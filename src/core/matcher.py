@@ -33,7 +33,7 @@ class ProductGroup(TypedDict):
 # Conversational / question words
 _STOPWORDS: frozenset = frozenset({
     'what', 'which', 'who', 'where', 'when', 'why', 'how',
-    'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'is', 'are', 'were', 'be', 'been', 'being',
     'do', 'does', 'did', 'have', 'has', 'had',
     'can', 'could', 'will', 'would', 'shall', 'should', 'may', 'might',
     'to', 'of', 'in', 'on', 'at', 'by', 'for', 'with', 'from', 'about',
