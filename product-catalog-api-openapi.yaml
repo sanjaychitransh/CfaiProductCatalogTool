@@ -1,0 +1,262 @@
+openapi: 3.0.0
+info:
+  title: IBM Product Catalog API
+  description: API for searching and retrieving IBM product information
+  version: 3.0.0
+
+servers:
+  - url: https://frowsy-glareless-kylie.ngrok-free.dev
+    description: Public API endpoint via ngrok tunnel
+
+# Apply BearerAuth to all operations by default
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Pass the API access token in the Authorization header.
+        Example: Authorization: Bearer <your-token>
+  responses:
+    Unauthorized:
+      description: Invalid or missing bearer token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { type: string }
+    AuthNotConfigured:
+      description: Authentication not configured on server
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { type: string }
+
+paths:
+  /health:
+    get:
+      operationId: health_check
+      summary: Health check
+      description: Returns service status and matcher statistics. No authentication required.
+      security: []   # public — no bearer token needed
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  matcher_loaded: { type: boolean }
+                  exact_aliases:  { type: integer }
+                  fuzzy_aliases:  { type: integer }
+
+  /products/search:
+    get:
+      operationId: search_products
+      summary: Search products
+      description: >
+        Search for IBM products by query string using exact and fuzzy matching.
+        Returns ranked results with confidence scores, match types, and matched aliases.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search term (product code, name, or keywords)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1000
+          example: "cognos analytics"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results to return (default 10)
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: threshold
+          in: query
+          required: false
+          description: Minimum fuzzy match score 0.0–1.0 (default 0.70)
+          schema:
+            type: number
+            default: 0.70
+            minimum: 0.0
+            maximum: 1.0
+        - name: fuzzy_limit
+          in: query
+          required: false
+          description: Maximum fuzzy candidates to evaluate (default 30)
+          schema:
+            type: integer
+            default: 30
+            minimum: 10
+            maximum: 100
+        - name: format
+          in: query
+          required: false
+          description: Response format — "new" (default) or "legacy"
+          schema:
+            type: string
+            enum: [new, legacy]
+            default: new
+      responses:
+        '200':
+          description: Successful search response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    description: Original search query
+                  normalized_query:
+                    type: string
+                    description: Cleaned/normalized version of the query
+                  result_count:
+                    type: integer
+                    description: Number of results returned
+                  execution_time_ms:
+                    type: number
+                    description: Query execution time in milliseconds
+                  results:
+                    type: array
+                    description: Matched products ranked by confidence
+                    items:
+                      type: object
+                      properties:
+                        product_code:
+                          type: string
+                          description: Unique IBM product code (SLC_CODE)
+                        product_name:
+                          type: string
+                          description: Full product display name
+                        score:
+                          type: number
+                          description: Raw match score (0.0–1.0)
+                        confidence:
+                          type: number
+                          description: Adjusted confidence score (0.0–1.0)
+                        match_types:
+                          type: array
+                          description: Types of matches (exact_full, exact_phrase, fuzzy)
+                          items:
+                            type: string
+                            enum: [exact_full, exact_phrase, fuzzy]
+                        matched_aliases:
+                          type: array
+                          description: Dictionary alias strings that matched the query
+                          items:
+                            type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AuthNotConfigured'
+
+  /products:
+    get:
+      operationId: list_products
+      summary: List all products
+      description: >
+        Returns a deduplicated list of all IBM products from the dictionary.
+        Supports pagination via limit and offset.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum products to return (default 100)
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: offset
+          in: query
+          required: false
+          description: Number of products to skip for pagination (default 0)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Number of products in this page
+                  total_available:
+                    type: integer
+                    description: Total distinct products in the dictionary
+                  products:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        product_code: { type: string }
+                        product_name: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AuthNotConfigured'
+
+  /products/{product_code}:
+    get:
+      operationId: get_product
+      summary: Get product by code
+      description: Get detailed information about a specific IBM product by its SLC code.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: product_code
+          in: path
+          required: true
+          description: IBM product SLC code (e.g., SABA7)
+          schema:
+            type: string
+          example: "SABA7"
+      responses:
+        '200':
+          description: Product found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product_code:  { type: string }
+                  product_name:  { type: string }
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AuthNotConfigured'
+
+# Made with Bob

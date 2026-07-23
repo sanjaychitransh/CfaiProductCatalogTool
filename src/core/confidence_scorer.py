@@ -26,7 +26,8 @@ class ConfidenceScorer:
     
     # Platform/version keywords for contextual boost
     PLATFORM_KEYWORDS = {
-        'z/os', 'zos', 'z os',
+        'z/os', 'zos', 'z os', 'z_os',  # z/OS — internal form after delimiter join
+        'ibm i', 'ibm z',                # IBM i (iSeries/AS400) and IBM Z mainframe
         'cloud', 'saas', 'paas', 'iaas',
         'on-premises', 'on premises', 'onprem',
         'hybrid', 'multicloud', 'multi-cloud',
@@ -119,37 +120,31 @@ class ConfidenceScorer:
     ) -> float:
         """
         Determine base score from match strength.
-        
-        Base Score Guidelines:
-        - Exact dictionary key match, single product: 0.90
-        - Exact match, multiple products: 0.75
-        - Substring match (long key): 0.70
-        - Token overlap only: 0.50
+
+        Spec:
+          Exact dictionary key match, single product  → 0.90
+          Exact match, multiple products              → 0.75
+          Substring match (long key)                  → 0.70
+          Token overlap only                          → 0.50
         """
-        # Exact match scenarios
+        # ── Exact match (alias key == query, from exact_match or fuzzy_match section) ──
         if match_type in ['exact_full', 'exact_phrase', 'exact_phrase_ac']:
             if product_count == 1:
-                # Single product exact match
-                return 0.90
+                return 0.90   # single product
             else:
-                # Multiple products exact match
-                return 0.75
-        
-        # Fuzzy match scenarios
+                return 0.75   # multiple products share this alias
+
+        # ── Fuzzy match ──
         elif match_type in ['fuzzy', 'fuzzy_bm25', 'fuzzy_ngram']:
-            # Long alias substring match (>= 10 chars)
-            if len(matched_alias) >= 10 and match_score >= 0.85:
+            # "Substring match (long key)": alias is long (≥ 10 chars) — the alias
+            # is a meaningful phrase, not just a token overlap
+            if len(matched_alias) >= 10:
                 return 0.70
-            
-            # Token overlap with good score
-            elif match_score >= 0.80:
-                return 0.60
-            
-            # Basic token overlap
+            # "Token overlap only": short alias, weaker signal
             else:
                 return 0.50
-        
-        # Fallback: use raw match score scaled appropriately
+
+        # Fallback
         return min(match_score * 0.9, 0.70)
     
     def _calculate_penalties(
@@ -162,26 +157,29 @@ class ConfidenceScorer:
     ) -> float:
         """
         Calculate disambiguation penalties.
-        
-        Penalties:
-        - Multiple candidate products remain: -0.10
-        - Match relied on generic terms: -0.10
-        - Fallback token logic was required: -0.15
+
+        Spec:
+          -0.10  if multiple candidate products remain
+                 (candidate_count = total distinct products in the result set)
+          -0.10  if match relied on generic terms
+          -0.15  if fallback token logic was required
+                 (used_fallback = True when BM25/token index returned no candidates
+                  and the matcher fell back to scanning all aliases)
         """
         total_penalty = 0.0
-        
-        # Penalty 1: Multiple candidate products
+
+        # Penalty 1: multiple candidate products remain in the result set
         if candidate_count > 1:
             total_penalty += 0.10
-        
-        # Penalty 2: Generic terms in match
+
+        # Penalty 2: match relied on generic terms
         if self._contains_generic_terms(query, matched_alias):
             total_penalty += 0.10
-        
-        # Penalty 3: Fallback logic used
+
+        # Penalty 3: fallback token logic was required
         if used_fallback:
             total_penalty += 0.15
-        
+
         return total_penalty
     
     def _calculate_boosts(

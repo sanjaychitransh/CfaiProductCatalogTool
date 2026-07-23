@@ -5,7 +5,14 @@ rapidfuzz>=3.5.0
 pydantic>=2.5.0
 pyahocorasick>=2.0.0
 rank-bm25>=0.2.2
-requests>=2.31.0
+python-dotenv>=1.0.0
+ibmcloudant>=0.0.42
+
+# LLM Reranking (optional — install whichever backend you use)
+# watsonx.ai backend
+ibm-watsonx-ai>=1.0.0
+# OpenAI backend (fallback)
+openai>=1.30.0
 
 # Testing Dependencies
 pytest>=7.4.0

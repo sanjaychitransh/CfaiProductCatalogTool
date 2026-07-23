@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional, Tuple, Set, TypedDict
 import re
 from .confidence_scorer import ConfidenceScorer
+from .llm_reranker import get_reranker
 
 # Optional enhanced imports - graceful fallback if not available
 try:
@@ -24,10 +25,56 @@ class ProductGroup(TypedDict):
     match_types: Set[str]
 
 
+# ---------------------------------------------------------------------------
+# Words stripped from queries before matching.
+# These carry no product-identification signal and only dilute scores.
+# ---------------------------------------------------------------------------
+
+# Conversational / question words
+_STOPWORDS: frozenset = frozenset({
+    'what', 'which', 'who', 'where', 'when', 'why', 'how',
+    'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'do', 'does', 'did', 'have', 'has', 'had',
+    'can', 'could', 'will', 'would', 'shall', 'should', 'may', 'might',
+    'to', 'of', 'in', 'on', 'at', 'by', 'for', 'with', 'from', 'about',
+    'the', 'a', 'an', 'this', 'that', 'these', 'those',
+    'me', 'my', 'we', 'our', 'you', 'your',
+    'tell', 'show', 'give', 'help', 'find', 'get', 'list',
+    'install', 'download', 'use', 'run', 'start', 'stop', 'set', 'up',
+    'ibm', 'need', 'want', 'like', 'know',
+})
+
+# Generic product-category words (also penalised by confidence scorer)
+# NOTE: 'application' is intentionally excluded — "Application Server" is a
+# meaningful product discriminator (e.g. "WebSphere Application Server for IBM i").
+_GENERIC_PRODUCT_WORDS: frozenset = frozenset({
+    'software', 'product', 'solution', 'system', 'tool',
+    'platform', 'service', 'program',
+    'suite', 'package', 'bundle', 'offering',
+})
+
+# Bigrams that must be protected from per-token noise stripping.
+# When both tokens of a bigram appear consecutively in the query they are
+# treated as a single meaningful unit and neither token is removed.
+# E.g. "ibm i" is the IBM i (AS/400) platform — stripping "ibm" or "i"
+# individually destroys the only signal that distinguishes
+# "WebSphere Application Server for IBM i" from generic WebSphere products.
+_PROTECTED_BIGRAMS: tuple = (
+    ('ibm', 'i'),     # IBM i (iSeries / AS/400) platform
+    ('ibm', 'z'),     # IBM Z mainframe platform
+    ('z', 'os'),      # z/OS — arrives as "z os" after slash→space normalisation;
+                      # protected so neither token is noise-stripped before
+                      # replace_delimiter_terms rejoins them as "z_os"
+)
+
+# Combined set removed from queries before matching
+_QUERY_NOISE_WORDS: frozenset = _STOPWORDS | _GENERIC_PRODUCT_WORDS
+
+
 class ProductMatcher:
     """
     High-performance product matcher with optional enhanced features.
-    
+
     Features:
     - Exact match (full equality + phrase containment)
     - Fuzzy match with candidate pre-filtering
@@ -35,6 +82,7 @@ class ProductMatcher:
     - Optional BM25 for weighted candidate retrieval
     - Optional N-gram index for typo tolerance
     - Advanced text normalization with delimiter handling
+    - Noise-word / stopword removal before matching
     - Machine code detection to skip fuzzy matching
     - Token-based inverted index for fast candidate retrieval
     - Grouped results by product code with score aggregation
@@ -117,15 +165,33 @@ class ProductMatcher:
             self.ac_automaton.make_automaton()
         
         # Build fuzzy match indexes with token inverted index
+        # fuzzy_alias_index:          normalised alias text -> list position
+        # fuzzy_alias_noisestripped_index: noise-stripped alias text -> list position
+        #   Used in get_all_matches Step 2 to promote fuzzy-section keys to
+        #   exact_full when the noise-stripped query equals the noise-stripped alias.
+        #   Example: query "websphere application server for z/os" normalises to
+        #   "web_sphere application server z_os" (noise-stripped); the alias key
+        #   "websphere application server for z/os" normalises to
+        #   "web_sphere application server z_os" (also noise-stripped) — they match.
+        self.fuzzy_alias_index: Dict[str, int] = {}
+        self.fuzzy_alias_noisestripped_index: Dict[str, int] = {}
         tokenized_corpus = []
         for alias, products in fuzzy_match.items():
             norm_alias = self.clean_string(alias)
             if not norm_alias:
                 continue
-            
+
             idx = len(self.fuzzy_aliases)
             self.fuzzy_aliases.append(norm_alias)
             self.fuzzy_routes.append(products)
+            self.fuzzy_alias_index[norm_alias] = idx
+
+            # Build noise-stripped index (first writer wins — longest alias takes
+            # priority because fuzzy_match is iterated in insertion order and we
+            # do NOT overwrite an existing entry).
+            noise_stripped = self.clean_string(alias, remove_noise=True)
+            if noise_stripped and noise_stripped not in self.fuzzy_alias_noisestripped_index:
+                self.fuzzy_alias_noisestripped_index[noise_stripped] = idx
             
             # Tokenize for BM25
             tokens = self.tokenize(norm_alias)
@@ -170,25 +236,51 @@ class ProductMatcher:
     def replace_delimiter_terms(self, query: str) -> str:
         """
         Normalize multi-word terms with custom delimiters.
-        
+
         Example:
             'tcp ip' -> 'tcp_ip'
             'cloud pak' -> 'cloud_pak'
             'check sorter' -> 'check_sorter'
+
+        Note: this transformation is applied to the internal matching index only.
+        Display aliases are converted back to spaces by _display_alias().
         """
         for term, delimiter in self.delimiter_dict.items():
             parts = term.split()
             if len(parts) != 2:
                 continue
-            
+
             # Match with flexible separators: space, hyphen, slash
             pattern = rf"(\b|\.|\?| ){re.escape(parts[0])}( |/|-|){re.escape(parts[1])}(\b|\.|\?| )"
             replacement = rf"\g<1>{parts[0]}{delimiter}{parts[1]}\g<3>"
             query = re.sub(pattern, replacement, query, flags=re.IGNORECASE)
-        
+
         return query
 
-    def clean_string(self, query: Any) -> str:
+    def _display_alias(self, alias: str) -> str:
+        """
+        Convert an internal normalized alias back to a human-readable form
+        for use in matched_aliases output.
+
+        Reverses the underscore-joining applied by replace_delimiter_terms so
+        that aliases like 'cloud_pak for data_stage' are displayed as
+        'cloud pak for data stage'.
+
+        Only underscores that were introduced by delimiter_dict substitutions
+        are reversed — any underscore that was present in the original
+        dictionary key is preserved by this targeted replacement.
+        """
+        result = alias
+        for term, delimiter in self.delimiter_dict.items():
+            if delimiter == "_":
+                parts = term.split()
+                if len(parts) == 2:
+                    result = result.replace(
+                        f"{parts[0]}_{parts[1]}", f"{parts[0]} {parts[1]}"
+                    )
+        return result
+
+    def clean_string(self, query: Any, remove_noise: bool = False) -> str:
         """
         Advanced text normalization pipeline:
         1. Handle None/empty/non-string inputs
@@ -198,6 +290,10 @@ class ProductMatcher:
         5. ASCII encoding
         6. Delimiter term normalization
         7. Whitespace collapse
+        8. Noise-word removal (only when remove_noise=True)
+           Strips conversational stopwords and generic product-category words
+           (e.g. "what is", "software", "solution") that carry no product signal.
+           Applied to user queries, NOT to dictionary alias keys.
         """
         if query is None:
             return ""
@@ -235,7 +331,28 @@ class ProductMatcher:
         
         # Collapse multiple spaces
         query = re.sub(r"\s+", " ", query).strip()
-        
+
+        # Step 8: Remove noise words from user queries
+        # Only applied when explicitly requested (user queries, not alias keys)
+        # Bigram-aware: tokens that form a _PROTECTED_BIGRAM with their neighbour
+        # are never stripped (e.g. "ibm i" — removing either token destroys the
+        # IBM i platform signal and causes wrong rankings).
+        if remove_noise and query:
+            tokens = query.split()
+            # Build a set of indices that are part of a protected bigram
+            protected_indices: set = set()
+            for idx in range(len(tokens) - 1):
+                pair = (tokens[idx], tokens[idx + 1])
+                if pair in _PROTECTED_BIGRAMS:
+                    protected_indices.add(idx)
+                    protected_indices.add(idx + 1)
+            cleaned = [
+                t for pos, t in enumerate(tokens)
+                if pos in protected_indices or t not in _QUERY_NOISE_WORDS
+            ]
+            # Preserve original if stripping removed everything meaningful
+            query = " ".join(cleaned) if cleaned else query
+
         return query
 
     def tokenize(self, text: str) -> List[str]:
@@ -258,15 +375,84 @@ class ProductMatcher:
         """
         Perform exact matching with Aho-Corasick (if available) or fallback strategies.
         Filters out short matches that don't have word boundaries.
-        
+
+        Ambiguous / qualifier-substring suppression
+        -------------------------------------------
+        Two distinct suppression cases:
+
+        Case A — Ambiguous alias (many products):
+          An exact-match key that maps to ≥ _AMBIGUOUS_ALIAS_MIN_PRODUCTS
+          products (e.g. ``z_os`` → 18 products) should NOT override a longer,
+          more specific match when the query carries substantial context.
+
+          Example suppressed:
+            query = "web_sphere application server z_os"  (4 tokens)
+            alias = "z_os"                                (1 token, 18 products)
+            → suppressed.
+
+          Example kept:
+            query = "z_os"  (exact full match)
+            → kept: user asked about z/OS directly.
+
+        Case B — Short platform qualifier used as substring:
+          A short alias (≤ _SHORT_ALIAS_MAX_TOKENS tokens) that appears as a
+          strict sub-sequence of a long query (query has ≥ _SHORT_QUERY_MIN_TOKENS
+          tokens AND the alias covers ≤ half the query tokens) is acting as a
+          platform/qualifier suffix in the user's intent, not as the primary
+          product being asked about.
+
+          Example suppressed:
+            query = "web_sphere application server ibm i"  (5 tokens)
+            alias = "ibm i"                                (2 tokens, 1 product)
+            → suppressed: "ibm i" is the platform qualifier, not the answer.
+
+          Example kept:
+            query = "ibm i"        (2 tokens, exact full match)
+            query = "ibm i tools"  (3 tokens but alias == half the query)
+            → kept.
+
         Returns:
             List of (alias, score, match_type, products)
         """
+        _AMBIGUOUS_ALIAS_MIN_PRODUCTS = 3   # Case A: alias resolves to this many+ products
+        _AMBIGUOUS_QUERY_MIN_TOKENS   = 3   # both cases: query must have this many+ tokens
+        _SHORT_ALIAS_MAX_TOKENS       = 2   # Case B: alias is this many tokens or fewer
+        _SHORT_ALIAS_MAX_FRACTION     = 0.5 # Case B: alias covers ≤ this fraction of query tokens
+
         query_norm = self.clean_string(query)
         query_buf = self.buffer(query_norm)
+        query_token_count = len(query_norm.split())
         matches: List[Tuple[str, float, str, List[Dict[str, str]]]] = []
         seen = set()
-        
+
+        def _is_suppressed_ambiguous(alias: str, products: List[Dict[str, str]]) -> bool:
+            """
+            Return True when the alias is a short/ambiguous substring hit that
+            should be suppressed in favour of a longer, more specific match.
+            """
+            # Keep full-query matches — the user asked for exactly this alias.
+            if alias == query_norm:
+                return False
+            # Only suppress when the query is long enough to carry specific context.
+            if query_token_count < _AMBIGUOUS_QUERY_MIN_TOKENS:
+                return False
+
+            alias_token_count = len(alias.split())
+
+            # Case A: alias resolves to many products (is ambiguous)
+            if len(products) >= _AMBIGUOUS_ALIAS_MIN_PRODUCTS:
+                return True
+
+            # Case B: short platform qualifier used as a substring
+            # (e.g. "ibm i" inside "web_sphere application server ibm i")
+            if (
+                alias_token_count <= _SHORT_ALIAS_MAX_TOKENS
+                and alias_token_count <= query_token_count * _SHORT_ALIAS_MAX_FRACTION
+            ):
+                return True
+
+            return False
+
         # Use Aho-Corasick if available (much faster)
         if self.use_enhanced and self.ac_automaton:
             for end_index, (alias, products) in self.ac_automaton.iter(query_norm):
@@ -278,7 +464,11 @@ class ProductMatcher:
                         alias_buf = self.buffer(alias)
                         if alias_buf not in query_buf:
                             continue
-                    
+
+                    # Suppress ambiguous substring hits when the query has enough context
+                    if _is_suppressed_ambiguous(alias, products):
+                        continue
+
                     seen.add(alias)
                     matches.append((alias, 1.0, "exact_phrase", products))
         else:
@@ -287,7 +477,7 @@ class ProductMatcher:
             if query_norm in self.exact_index:
                 matches.append((query_norm, 1.0, "exact_full", self.exact_index[query_norm]))
                 seen.add(query_norm)
-            
+
             # Strategy 2: Phrase containment (alias in query)
             for alias, products in self.exact_phrases:
                 if alias not in seen:
@@ -298,10 +488,14 @@ class ProductMatcher:
                             continue
                     elif self.buffer(alias) not in query_buf:
                         continue
-                    
+
+                    # Suppress ambiguous substring hits when the query has enough context
+                    if _is_suppressed_ambiguous(alias, products):
+                        continue
+
                     seen.add(alias)
                     matches.append((alias, 1.0, "exact_phrase", products))
-        
+
         # Sort by length (longer = more specific)
         matches.sort(key=lambda x: len(x[0]), reverse=True)
         return matches
@@ -310,16 +504,19 @@ class ProductMatcher:
         self,
         query_norm: str,
         max_candidates: int = 500
-    ) -> List[Tuple[int, str]]:
+    ) -> Tuple[List[Tuple[int, str]], bool]:
         """
         Fast candidate filtering using BM25 (if available) or token overlap.
-        
+
         Args:
             query_norm: Normalized query string
             max_candidates: Maximum candidates to return
-            
+
         Returns:
-            List of (alias_index, alias_text) tuples
+            Tuple of:
+              - List of (alias_index, alias_text) tuples
+              - used_fallback: True when no token/BM25 candidates were found and
+                the matcher fell back to scanning all aliases (triggers -0.15 penalty)
         """
         # Use BM25 if available and enabled
         if self.use_enhanced and self.bm25_index:
@@ -332,7 +529,7 @@ class ProductMatcher:
                     reverse=True
                 )[:max_candidates]
                 candidates = [(idx, self.fuzzy_aliases[idx]) for idx in top_indices if scores[idx] > 0]
-                
+
                 # Add n-gram candidates if BM25 returns few results
                 if len(candidates) < 20 and self.ngram_index:
                     ngram_candidates = self._get_ngram_candidates(query_norm, max_candidates)
@@ -340,27 +537,25 @@ class ProductMatcher:
                     for idx, text in ngram_candidates:
                         if idx not in existing_ids:
                             candidates.append((idx, text))
-                
-                return candidates[:max_candidates]
-        
-        # Fallback to token overlap
+
+                if candidates:
+                    return candidates[:max_candidates], False
+
+        # Token overlap fallback
         tokens = self.tokenize(query_norm)
         candidate_ids = set()
-        
-        # Find all aliases that share at least one token
         for token in tokens:
             candidate_ids.update(self.token_to_fuzzy_ids.get(token, set()))
-        
-        # Fallback: if no token overlap, use first N aliases
-        if not candidate_ids:
-            fallback_count = min(max_candidates, len(self.fuzzy_aliases))
-            return [(i, self.fuzzy_aliases[i]) for i in range(fallback_count)]
-        
-        candidates = [(i, self.fuzzy_aliases[i]) for i in candidate_ids]
-        
-        # Prefer longer aliases (more specific)
-        candidates.sort(key=lambda x: len(x[1]), reverse=True)
-        return candidates[:max_candidates]
+
+        if candidate_ids:
+            candidates = [(i, self.fuzzy_aliases[i]) for i in candidate_ids]
+            candidates.sort(key=lambda x: len(x[1]), reverse=True)
+            return candidates[:max_candidates], False
+
+        # Last-resort fallback: no token or BM25 signal — scan all aliases
+        # This is the "fallback token logic" that triggers the -0.15 penalty
+        fallback_count = min(max_candidates, len(self.fuzzy_aliases))
+        return [(i, self.fuzzy_aliases[i]) for i in range(fallback_count)], True
 
     def _get_ngram_candidates(
         self,
@@ -424,17 +619,17 @@ class ProductMatcher:
             List of (alias, score, match_type, products)
         """
         query_norm = self.clean_string(query)
-        
-        # Get pre-filtered candidates
-        candidates = self.get_fuzzy_candidates(query_norm)
-        
+
+        # Get pre-filtered candidates; used_fallback signals -0.15 penalty
+        candidates, used_fallback = self.get_fuzzy_candidates(query_norm)
+
         if not candidates:
-            return []
-        
+            return [], False
+
         # Extract candidate texts and build reverse lookup
         candidate_texts = [candidate_text for _, candidate_text in candidates]
         candidate_map = {candidate_text: idx for idx, candidate_text in candidates}
-        
+
         # Perform fuzzy matching (rapidfuzz is highly optimized)
         extracted = process.extract(
             query_norm,
@@ -443,16 +638,16 @@ class ProductMatcher:
             score_cutoff=int(threshold * 100),  # rapidfuzz uses 0-100 scale
             limit=limit
         )
-        
+
         # Convert to standard format
         matches = []
         for alias, score, _ in extracted:
             idx = candidate_map[alias]
             matches.append((alias, score / 100.0, "fuzzy", self.fuzzy_routes[idx]))
-        
+
         # Sort by score, then length
         matches.sort(key=lambda x: (x[1], len(x[0])), reverse=True)
-        return matches
+        return matches, used_fallback
 
     def get_all_matches(
         self,
@@ -462,40 +657,88 @@ class ProductMatcher:
     ) -> List[Tuple[str, float, str, List[Dict[str, str]]]]:
         """
         Combine exact and fuzzy matching with smart heuristics.
-        
+
         Logic:
-        1. Always perform exact matching
-        2. Skip fuzzy for machine codes (e.g., "5724-A12")
-        3. Skip fuzzy for very short queries (< 5 chars)
-        4. Rank exact matches higher than fuzzy
-        
+        1. Always perform exact matching (exact_match section of dictionary)
+        2. Also check fuzzy_match section for exact key equality — promotes
+           keys that are stored in fuzzy_match but exactly match the query
+        3. Skip fuzzy scoring for machine codes (e.g., "5724-A12")
+        4. Skip fuzzy scoring for very short queries (< 5 chars)
+        5. Rank: exact matches first, then fuzzy, then by score, then by length
+
         Returns:
             Combined and ranked list of matches
         """
-        query_norm = self.clean_string(query)
-        
-        # Always do exact matching
+        # Strip noise words from the user query; alias keys are never noise-stripped
+        query_norm = self.clean_string(query, remove_noise=True)
+
+        # --- Step 1: exact_match section hits ---
         matches = self.exact_match(query_norm)
-        
-        # Conditionally add fuzzy matching
+        exact_aliases_seen = {alias for alias, _, _, _ in matches}
+
+        # --- Step 2: promote fuzzy-section keys that exactly match any token
+        #             or the full query string.
+        #
+        #   e.g. query "how to install cognos":
+        #     - "cognos" is a token AND an exact key in fuzzy_match → exact_full
+        #   e.g. query "cognos":
+        #     - full query is an exact key in fuzzy_match → exact_full
+        #
+        #   Step 2b: also promote via noise-stripped index.
+        #   Handles cases where the query and alias differ only in stopwords:
+        #   query  "websphere application server for z/os"
+        #     → noise-stripped: "web_sphere application server z_os"
+        #   alias  "websphere application server for z/os"
+        #     → noise-stripped: "web_sphere application server z_os"
+        #   They match via fuzzy_alias_noisestripped_index → promoted to exact_full.
+        candidates_for_exact = {query_norm} | set(self.tokenize(query_norm))
+        for term in candidates_for_exact:
+            if term in self.fuzzy_alias_index and term not in exact_aliases_seen:
+                idx = self.fuzzy_alias_index[term]
+                matches.append((term, 1.0, "exact_full", self.fuzzy_routes[idx]))
+                exact_aliases_seen.add(term)
+
+        # Step 2b: noise-stripped alias lookup.
+        # Only applied when the noise-stripped query has enough tokens to carry
+        # specific product context (>= 3 tokens).  Short queries like "z/os"
+        # (1 token after normalisation) must go through the standard exact_match
+        # path; hijacking them via the noisestripped index would surface wrong
+        # products (e.g. "was for z/os" → SAIW1 instead of z/OS → SCZQ9).
+        _NS_MIN_TOKENS = 3
+        if (
+            len(query_norm.split()) >= _NS_MIN_TOKENS
+            and query_norm in self.fuzzy_alias_noisestripped_index
+        ):
+            idx = self.fuzzy_alias_noisestripped_index[query_norm]
+            norm_alias = self.fuzzy_aliases[idx]
+            if norm_alias not in exact_aliases_seen:
+                matches.append((norm_alias, 1.0, "exact_full", self.fuzzy_routes[idx]))
+                exact_aliases_seen.add(norm_alias)
+
+        # --- Step 3: fuzzy scoring for remaining candidates ---
         should_fuzzy = (
-            not self.is_machine_code(query_norm) and 
+            not self.is_machine_code(query_norm) and
             not self.is_small_query(query_norm)
         )
-        
+
+        used_fallback = False
         if should_fuzzy:
-            matches.extend(
-                self.fuzzy_match(query_norm, threshold=fuzzy_threshold, limit=fuzzy_limit)
+            fuzzy_results, used_fallback = self.fuzzy_match(
+                query_norm, threshold=fuzzy_threshold, limit=fuzzy_limit
             )
-        
-        # Ranking: exact > fuzzy, then by score, then by length
+            # Exclude aliases already captured as exact
+            for alias, score, match_type, products in fuzzy_results:
+                if alias not in exact_aliases_seen:
+                    matches.append((alias, score, match_type, products))
+
+        # Ranking: exact > fuzzy, then by score, then by alias length
         def rank_key(item):
             alias, score, match_type, _ = item
             exact_priority = 1 if match_type.startswith("exact") else 0
             return (exact_priority, score, len(alias))
-        
+
         matches.sort(key=rank_key, reverse=True)
-        return matches
+        return matches, used_fallback
 
     def identify_products(
         self,
@@ -503,39 +746,49 @@ class ProductMatcher:
         fuzzy_threshold: float = 0.70,
         return_count: int = 10,
         fuzzy_limit: int = 30,
-        char_limit: int = 1000
+        char_limit: int = 1000,
+        enable_llm_reranking: bool = True,
+        llm_rerank_top_n: int = 5,
     ) -> List[Dict[str, Any]]:
         """
         Main API method: identify products from query.
-        
-        Process:
+
+        Pipeline
+        --------
         1. Truncate query to char_limit
-        2. Get all matches (exact + fuzzy)
-        3. Group by product code (SLC_CODE)
-        4. Aggregate scores (max), aliases (list), match types (set)
-        5. Calculate confidence scores if enabled
-        6. Rank and return top N results
-        
+        2. Normalization + Synonym / Alias Expansion (clean_string)
+        3. BM25 + RapidFuzz → all matches (exact + fuzzy)
+        4. Group by product code (SLC_CODE), score aggregation
+        5. Calculate confidence scores
+        6. Rank → Top 10 candidates
+        7. Take Top ``llm_rerank_top_n`` (default 5) → LLM Reranking
+             ├── Success → reranked results (reranked_by_llm=True)
+             └── Failure → BM25 + RapidFuzz results (reranked_by_llm=False)
+        8. Return top ``return_count`` results
+
         Args:
             query: User search query
             fuzzy_threshold: Minimum fuzzy score (0.0-1.0)
             return_count: Maximum results to return
             fuzzy_limit: Maximum fuzzy candidates to match
             char_limit: Maximum query length to process
-            
+            enable_llm_reranking: Whether to attempt LLM reranking
+            llm_rerank_top_n: How many top candidates to send to the LLM
+
         Returns:
-            List of product dicts with scores, codes, names, aliases, confidence
+            List of product dicts with scores, codes, names, aliases, confidence,
+            and a boolean ``reranked_by_llm`` field.
         """
         # Truncate long queries
         query = str(query)[:char_limit]
-        
-        # Get all matches
-        matches = self.get_all_matches(
+
+        # Get all matches; used_fallback=True when -0.15 penalty should apply
+        matches, used_fallback = self.get_all_matches(
             query=query,
             fuzzy_threshold=fuzzy_threshold,
             fuzzy_limit=fuzzy_limit
         )
-        
+
         # Group by product code
         def _default_group() -> Dict[str, Any]:
             return {
@@ -545,80 +798,166 @@ class ProductMatcher:
                 "matched_aliases": [],
                 "match_types": set(),
                 "best_match_alias": None,
-                "best_match_type": None
+                "best_match_type": None,
+                # Number of products that the best-match alias key resolves to
+                # (used for confidence scoring: >1 means ambiguous alias)
+                "best_match_alias_product_count": 1,
             }
-        
+
         grouped: Dict[str, Dict[str, Any]] = defaultdict(_default_group)
-        
+
         for alias, score, match_type, products in matches:
             for product in products:
                 code = product.get("SLC_CODE")
                 name = product.get("PRODUCT_NAME")
-                
+
                 if not code:
                     continue
-                
+
                 item = grouped[code]
                 item["product_code"] = code
                 item["product_name"] = name
-                
-                # Track best match for confidence calculation
-                if score > item["score"]:
+
+                # Track best match for confidence calculation.
+                # Prefer exact over fuzzy at equal score.
+                current_is_exact = item["best_match_type"] and item["best_match_type"].startswith("exact")
+                new_is_exact = match_type.startswith("exact")
+                if (score > item["score"]) or (score == item["score"] and new_is_exact and not current_is_exact):
                     item["score"] = round(score, 6)
                     item["best_match_alias"] = alias
                     item["best_match_type"] = match_type
-                
-                # Collect unique aliases
-                if alias not in item["matched_aliases"]:
-                    item["matched_aliases"].append(alias)
-                
+                    # How many distinct products does this alias key resolve to?
+                    item["best_match_alias_product_count"] = len(products)
+
+                # Collect unique aliases — exact-matched aliases go first.
+                # Convert internal underscore-joined forms back to display form
+                # (e.g. 'cloud_pak' → 'cloud pak') before storing for output.
+                display = self._display_alias(alias)
+                if display not in item["matched_aliases"]:
+                    if new_is_exact:
+                        item["matched_aliases"].insert(0, display)
+                    else:
+                        item["matched_aliases"].append(display)
+
                 # Collect match types
                 item["match_types"].add(match_type)
-        
+
         # Convert to list and calculate confidence scores
         results = []
         total_candidates = len(grouped)
-        
+
         for _, item in grouped.items():
             item["match_types"] = sorted(list(item["match_types"]))
-            
+
+            # Preserve tie-breaking signals before temporary fields are deleted.
+            #
+            # Signal 1 — best_match_alias length:
+            #   A longer best-matching alias indicates a more specific match
+            #   (e.g. "web_sphere application server for ibm i" (39 chars) is more
+            #   specific than "ibm i db2" (9 chars) even if both score 1.0).
+            item["_best_alias_len"] = len(item.get("best_match_alias") or "")
+            #
+            # Signal 2 — product name similarity (final tie-break):
+            #   When two products share the exact same best-match alias
+            #   (e.g. both SCPF9 and SCPL5 map to "web_sphere application server
+            #   for ibm i"), use the token overlap between the query and the
+            #   product name as a last-resort tie-break.
+            #   SCPL5 "WebSphere Application Server for IBM i" shares 5 tokens
+            #   with the query; SCPF9 "IBM i" shares only 2.
+            query_tokens = set(self.clean_string(query).split())
+            name_tokens  = set(self.clean_string(item.get("product_name") or "").split())
+            item["_name_overlap"] = len(query_tokens & name_tokens)
+
             # Calculate confidence score if enabled
             if self.enable_confidence_scoring and self.confidence_scorer:
-                # Determine if fallback was used (fuzzy with low score)
-                used_fallback = (
-                    "fuzzy" in item["best_match_type"] and
-                    item["score"] < 0.75
-                )
-                
                 confidence = self.confidence_scorer.calculate_confidence(
                     match_type=item["best_match_type"],
                     match_score=item["score"],
                     query=query,
                     matched_alias=item["best_match_alias"],
-                    product_count=len(item["matched_aliases"]),
+                    # product_count: how many products the best alias key maps to
+                    product_count=item["best_match_alias_product_count"],
+                    # candidate_count: total distinct products in result set
+                    # spec: "-0.10 if multiple candidate products remain"
                     candidate_count=total_candidates,
                     product_code=item["product_code"],
+                    # used_fallback: True only when no token/BM25 signal was found
+                    # and matcher fell back to scanning all aliases
                     used_fallback=used_fallback
                 )
                 item["confidence"] = confidence
             else:
                 # Fallback: use match score as confidence
                 item["confidence"] = round(item["score"], 2)
-            
+
             # Clean up temporary fields
             del item["best_match_alias"]
             del item["best_match_type"]
-            
+            del item["best_match_alias_product_count"]
+
             results.append(item)
-        
-        # Final ranking: exact-backed > confidence > score > alias count
+
+        # ── Stage 6: BM25+RapidFuzz ranking → Top 10 ──────────────────────
         def result_rank(item):
             has_exact = any(mt.startswith("exact") for mt in item["match_types"])
             exact_priority = 1 if has_exact else 0
-            return (exact_priority, item["confidence"], item["score"], len(item["matched_aliases"]))
-        
+            # Primary tie-break: length of the best-matching alias (longer = more specific).
+            # Final tie-break: product name token overlap with query (more overlap = better).
+            best_alias_len = item.pop("_best_alias_len", 0)
+            name_overlap   = item.pop("_name_overlap", 0)
+            return (exact_priority, item["confidence"], item["score"], best_alias_len, name_overlap)
+
         results.sort(key=result_rank, reverse=True)
-        return results[:return_count]
+        top10 = results[:10]
+
+        # ── Stage 7: LLM Reranking (Top 5 of the Top 10) ─────────────────
+        reranked_by_llm = False
+        if enable_llm_reranking:
+            try:
+                reranker = get_reranker()
+                # bm25_top1_id: the product BM25+RapidFuzz ranked #1 before LLM
+                bm25_top1_id = top10[0]["product_code"] if top10 else None
+                top10, reranked_by_llm, llm_top1_id = reranker.rerank(query, top10)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "LLM reranking raised an unexpected error (%s). "
+                    "Falling back to BM25+RapidFuzz order.", exc
+                )
+                reranked_by_llm = False
+                bm25_top1_id = None
+                llm_top1_id = None
+        else:
+            bm25_top1_id = None
+            llm_top1_id = None
+
+        # ── Conditional confidence boost ───────────────────────────────────
+        # Apply +0.05 to the top result ONLY when all three conditions hold:
+        #   1. LLM reranking succeeded
+        #   2. LLM #1 agrees with BM25 #1 — both retrieval signals converge
+        #   3. The top result is a fuzzy match (exact matches are already ≥ 0.75;
+        #      adding a boost there would artificially inflate already-strong signals)
+        # This is NOT a blanket "LLM ran → +0.05" rule.
+        if (
+            reranked_by_llm
+            and top10
+            and llm_top1_id is not None
+            and bm25_top1_id is not None
+            and llm_top1_id == bm25_top1_id          # both agree on the same #1
+            and not any(                              # top result is fuzzy, not exact
+                mt.startswith("exact")
+                for mt in top10[0].get("match_types", [])
+            )
+        ):
+            top10[0]["confidence"] = round(
+                min(top10[0]["confidence"] + 0.05, 1.00), 2
+            )
+
+        # Attach reranked_by_llm flag to every result
+        for item in top10:
+            item["reranked_by_llm"] = reranked_by_llm
+
+        return top10[:return_count]
 
     def wml_product_identification(
         self,
