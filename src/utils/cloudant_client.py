@@ -11,20 +11,45 @@ IBM Cloudant hosted service uses IAM (CLOUDANT_APIKEY).
 The module picks the right authenticator automatically:
   - CLOUDANT_APIKEY set   → IAMAuthenticator  (IBM Cloud hosted)
   - CLOUDANT_APIKEY unset → BasicAuthenticator (local CouchDB / ICP)
+
+SDK availability
+----------------
+The ibmcloudant and ibm-cloud-sdk-core packages are optional dependencies.
+If they are not installed the module degrades gracefully: get_cloudant_client()
+and load_match_dictionary_from_cloudant() raise RuntimeError with a clear
+install hint rather than crashing with an ImportError at import time.
 """
 
 import os
 from typing import Any, Dict, Optional
 
-from ibmcloudant.cloudant_v1 import CloudantV1
-from ibm_cloud_sdk_core.authenticators import BasicAuthenticator, IAMAuthenticator
-from ibm_cloud_sdk_core.api_exception import ApiException
+# ---------------------------------------------------------------------------
+# Optional SDK imports — guard with try/except so the module (and therefore
+# the entire application) does not crash on import when the SDK is absent.
+# ---------------------------------------------------------------------------
+try:
+    from ibmcloudant.cloudant_v1 import CloudantV1
+    from ibm_cloud_sdk_core.authenticators import BasicAuthenticator, IAMAuthenticator
+    from ibm_cloud_sdk_core.api_exception import ApiException
+    _CLOUDANT_AVAILABLE = True
+except ImportError:
+    _CLOUDANT_AVAILABLE = False
+    CloudantV1 = None        # type: ignore[assignment,misc]
+    BasicAuthenticator = None  # type: ignore[assignment,misc]
+    IAMAuthenticator = None    # type: ignore[assignment,misc]
+    ApiException = Exception   # type: ignore[assignment,misc]
+
+_CLOUDANT_INSTALL_HINT = (
+    "Install the IBM Cloudant SDK with:\n"
+    "    pip install ibmcloudant ibm-cloud-sdk-core\n"
+    "Or add them to config/requirements.txt."
+)
 
 
-_client: Optional[CloudantV1] = None
+_client: Optional["CloudantV1"] = None  # type: ignore[type-arg]
 
 
-def get_cloudant_client() -> CloudantV1:
+def get_cloudant_client():  # return type omitted — CloudantV1 may be None at import time
     """
     Return a cached Cloudant client, creating it on first call.
 
@@ -41,8 +66,15 @@ def get_cloudant_client() -> CloudantV1:
 
     Raises
     ------
+    RuntimeError if the ibmcloudant SDK is not installed.
     RuntimeError if the required environment variables are not set.
     """
+    if not _CLOUDANT_AVAILABLE:
+        raise RuntimeError(
+            "ibmcloudant SDK is not installed — cannot connect to Cloudant/CouchDB.\n"
+            + _CLOUDANT_INSTALL_HINT
+        )
+
     global _client
     if _client is not None:
         return _client

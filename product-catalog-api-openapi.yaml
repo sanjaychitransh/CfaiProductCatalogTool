@@ -5,8 +5,10 @@ info:
   version: 3.0.0
 
 servers:
+  - url: https://cfaiproducts.2b06dgt5gcrj.us-south.codeengine.appdomain.cloud
+    description: Production — IBM Cloud Code Engine
   - url: https://frowsy-glareless-kylie.ngrok-free.dev
-    description: Public API endpoint via ngrok tunnel
+    description: "Development tunnel (ephemeral ngrok — DO NOT use in production)"
 
 # Apply BearerAuth to all operations by default
 security:
