@@ -73,14 +73,16 @@ class TLSChecker:
         otherwise return ``None``.
 
         The returned dict is ready to be used directly as the API
-        response body.
+        response body (matches ``TLSRedirectResponse`` shape).
+        ``message`` is intentionally omitted — callers receive only the
+        routing signal (``tls_product: true``), the SLC code, the product
+        name, and the target assistant.
         """
         if slc_code not in self._slc_to_assistant:
             return None
 
         return {
             "tls_product": True,
-            "message": "This is a TLS product. Redirected to TLS agent.",
             "slc_code": slc_code,
             "product_name": self._slc_to_product.get(slc_code, ""),
             "assistant": self._slc_to_assistant[slc_code],

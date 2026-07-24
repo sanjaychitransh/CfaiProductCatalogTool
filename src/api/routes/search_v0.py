@@ -114,17 +114,18 @@ def search_products_v0(
                 "confidence": result.get("confidence", result["score"]),
                 "product_code": result["product_code"],
                 "support_desc": result["product_name"],
-                "support_alias": result["matched_aliases"]
+                "support_alias": result["matched_aliases"],
             })
-        return {"results": legacy_results}
-    else:
-        return {
-            "query": query,
-            "normalized_query": normalized_query,
-            "results": results,
-            "execution_time_ms": round(execution_time, 2),
-            "result_count": len(results)
-        }
+        return {"tls_product": False, "results": legacy_results}
+
+    return {
+        "tls_product": False,
+        "query": query,
+        "normalized_query": normalized_query,
+        "results": results,
+        "execution_time_ms": round(execution_time, 2),
+        "result_count": len(results),
+    }
 
 
 # Made with Bob

@@ -132,9 +132,10 @@ def search_products(
             }
             for r in results
         ]
-        return {"results": legacy_results}
+        return {"tls_product": False, "results": legacy_results}
 
     return {
+        "tls_product": False,
         "query": query,
         "normalized_query": normalized_query,
         "results": results,
