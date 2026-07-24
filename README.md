@@ -4,6 +4,26 @@ High-performance FastAPI service for IBM product identification using a multi-st
 
 ---
 
+## What's New in v4 — TLS Routing
+
+When a user query matches a **TLS-owned product** (identified by its SLC code), the primary search endpoint (`GET /products/search`) now returns a **redirect response** instead of product names:
+
+```json
+{
+  "tls_product": true,
+  "message": "This is a TLS product. Redirected to TLS agent.",
+  "slc_code": "SCPA0",
+  "product_name": "AIX",
+  "assistant": "AIX (Support)"
+}
+```
+
+The caller should hand the conversation off to the named TLS agent.
+
+**Fallback:** The original behaviour (no TLS check, raw product results) is preserved at `GET /v0/products/search` for regression testing, debugging, or rollback.
+
+---
+
 ## Prerequisites
 
 | Tool | Minimum Version | Install |
@@ -63,11 +83,12 @@ ibmcloud cr namespace-add <YOUR_NAMESPACE>
 
 ### Step 4 — Prepare the data directory
 
-The `data/` folder is **not** in source control. Before building the image, place the product dictionary file locally:
+The `data/` folder is **not** in source control. Before building the image, place the required files locally:
 
 ```
 data/
-└── product_match_dictionary.json
+├── product_match_dictionary.json
+└── tls_assistant_slc_code_mappings.json   ← required for TLS routing
 ```
 
 The `Dockerfile` copies this directory into the image:
@@ -75,6 +96,9 @@ The `Dockerfile` copies this directory into the image:
 ```dockerfile
 COPY data/ ./data/
 ```
+
+> **Note:** `tls_assistant_slc_code_mappings.json` must contain only entries with `"owner": "TLS"`.
+> If the file is missing, TLS routing is disabled and the service starts normally with a warning.
 
 ---
 
@@ -149,10 +173,13 @@ Open the returned URL in a browser — the following endpoints are available:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
+| `/stats` | GET | Matcher statistics |
 | `/docs` | GET | Swagger UI |
 | `/redoc` | GET | ReDoc UI |
-| `/search` | POST | Product search |
+| `/products/search` | GET | **Primary** product search (with TLS intercept) |
+| `/v0/products/search` | GET | **Secondary** product search (no TLS check — fallback) |
 | `/products` | GET | Product listing |
+| `/products/{SLC_CODE}` | GET | Get product by SLC code |
 
 ---
 
@@ -165,6 +192,49 @@ ibmcloud ce application logs --name cfai-product-catalog --follow
 # Dump recent logs
 ibmcloud ce application logs --name cfai-product-catalog
 ```
+
+---
+
+## TLS Routing
+
+### How it works
+
+1. A query arrives at `GET /products/search`.
+2. The matcher runs its normal multi-stage search pipeline.
+3. **Before** building the response, the top result's `product_code` (SLC code) is looked up in `tls_assistant_slc_code_mappings.json`.
+4. If the SLC code belongs to a TLS-owned product:
+   - The endpoint returns a `TLSRedirectResponse` — **no product names** are included.
+   - The `assistant` field names the TLS agent the caller should route to.
+5. If the SLC code is **not** a TLS product, the normal `SearchResponse` is returned.
+
+### TLS response shape
+
+```json
+{
+  "tls_product": true,
+  "message": "This is a TLS product. Redirected to TLS agent.",
+  "slc_code": "SCPA0",
+  "product_name": "AIX",
+  "assistant": "AIX (Support)"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tls_product` | boolean | Always `true` when this response is returned |
+| `message` | string | Human-readable redirect notice |
+| `slc_code` | string | Matched SLC code |
+| `product_name` | string | TLS product name |
+| `assistant` | string | Name of the TLS agent to redirect to |
+
+### Fallback / bypass
+
+Use `GET /v0/products/search` to get the raw product results without TLS interception.
+This endpoint is identical to the pre-v4 primary endpoint — useful for:
+
+- Comparing results with / without TLS routing
+- Debugging which products are being intercepted
+- Rolling back temporarily without a re-deploy
 
 ---
 
@@ -200,31 +270,30 @@ uvicorn app:app --host 0.0.0.0 --port 8080 --reload
 
 ```
 CfaiProductCatalogTool/
-├── app.py                          # ASGI entry point
-├── Dockerfile                      # IBM Code Engine container definition
+├── app.py                                   # ASGI entry point
+├── Dockerfile                               # IBM Code Engine container definition
+├── product-catalog-api-openapi.yaml         # OpenAPI 3.0 spec (v4)
+├── ibm-orchestrate-agent.yaml               # IBM Orchestrate agent definition
 ├── config/
-│   ├── requirements.txt            # All dependencies (dev + prod)
-│   └── requirements-prod.txt       # Production-only dependencies
+│   ├── requirements.txt                     # All dependencies (dev + prod)
+│   └── requirements-prod.txt               # Production-only dependencies
 ├── src/
 │   ├── api/
-│   │   ├── app.py                  # FastAPI application factory & startup
-│   │   └── routes/                 # health / search / products routers
+│   │   ├── app.py                           # FastAPI application factory & startup
+│   │   ├── models/
+│   │   │   └── response.py                  # Pydantic response models (incl. TLSRedirectResponse)
+│   │   └── routes/
+│   │       ├── health.py                    # /health, /stats
+│   │       ├── products.py                  # /products, /products/{SLC_CODE}
+│   │       ├── search.py                    # /products/search  ← PRIMARY (TLS intercept)
+│   │       └── search_v0.py                 # /v0/products/search ← SECONDARY (no TLS check)
 │   ├── core/
-│   │   └── matcher.py              # ProductMatcher (multi-stage search pipeline)
-│   └── utils/                      # Shared utilities
-└── data/                           # ⚠ NOT in source control — add locally before build
-    └── product_match_dictionary.json
+│   │   ├── matcher.py                       # ProductMatcher (multi-stage search pipeline)
+│   │   ├── matcher_enhanced.py              # Enhanced matcher helpers
+│   │   ├── confidence_scorer.py             # Confidence scoring logic
+│   │   └── tls_checker.py                   # TLS SLC-code lookup (new in v4)
+│   └── utils/                              # Shared utilities
+└── data/                                   # ⚠ NOT in source control — add locally before build
+    ├── product_match_dictionary.json
+    └── tls_assistant_slc_code_mappings.json
 ```
-
----
-
-## Files Excluded from Source Control
-
-The following are listed in `.gitignore` and must **never** be committed:
-
-| Path | Reason |
-|------|--------|
-| `cfaiRS256.key` | Private RS256 JWT signing key |
-| `cfaiRS256.key.pub` | Public RS256 key |
-| `data/` | Product dictionary — baked into image at build time |
-| `env/` | Local Python virtual environment |

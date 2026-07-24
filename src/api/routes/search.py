@@ -1,20 +1,26 @@
 """
-Search endpoints for product matching.
+Search endpoints for product matching (primary — includes TLS intercept).
+
+When the top-ranked result belongs to a TLS-owned product the endpoint
+returns a TLSRedirectResponse instead of the normal product list.
+The original behaviour without any TLS check is preserved at
+/v0/products/search (see search_v0.py).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 import time
 
 from ..auth import require_token
-from ..models.response import AEOAnswerResponse, LegacySearchResponse, SearchResponse
+from ..models.response import AEOAnswerResponse, LegacySearchResponse, SearchResponse, TLSRedirectResponse
 from src.core.aeo_formatter import format_aeo_answer
 from src.core.acronym_expander import expand_and_search, is_expansion_candidate
 
 router = APIRouter(prefix="/products", tags=["Search"])
 
-# Global matcher instance (will be set by main app)
+# Global instances (set by main app at startup)
 matcher = None
+tls_checker = None
 
 
 def set_matcher(matcher_instance):
@@ -23,7 +29,27 @@ def set_matcher(matcher_instance):
     matcher = matcher_instance
 
 
-@router.get("/search", response_model=SearchResponse, dependencies=[Depends(require_token)])
+def set_tls_checker(tls_checker_instance):
+    """Set the global TLS checker instance."""
+    global tls_checker
+    tls_checker = tls_checker_instance
+
+
+@router.get(
+    "/search",
+    response_model=Union[TLSRedirectResponse, SearchResponse, LegacySearchResponse],
+    dependencies=[Depends(require_token)],
+    responses={
+        200: {
+            "description": (
+                "Product search result.  When the best match is a TLS-owned product "
+                "the response body is a **TLSRedirectResponse** (``tls_product: true``). "
+                "Otherwise it is the standard **SearchResponse** (new format) or "
+                "**LegacySearchResponse** (legacy format)."
+            )
+        }
+    },
+)
 def search_products(
     query: str = Query(
         ...,
@@ -65,6 +91,17 @@ def search_products(
     """
     Search for products using exact and fuzzy matching with optional LLM reranking.
 
+    **TLS Intercept (new in v4):**
+    If the highest-confidence result belongs to a TLS-owned product the
+    endpoint immediately returns a `TLSRedirectResponse` — *no* product
+    names are included.  The caller should hand the conversation off to
+    the named TLS assistant.
+
+    To bypass the TLS check (e.g. for debugging or fallback), use the
+    secondary endpoint at `/v0/products/search`.
+
+    ---
+
     **Search Pipeline:**
     1. Normalization + Synonym/Alias Expansion
     2. BM25 + RapidFuzz → Top 10 candidates
@@ -87,21 +124,17 @@ def search_products(
       (no hallucination of new codes is possible)
     - Disable with `llm_rerank=false` for lower latency
 
-    **Response Formats:**
-    - **new** (default): Enhanced format with execution time, match types, query info
+    **Response Formats (non-TLS products):**
+    - **new** (default): Enhanced format with execution time, match types, confidence, etc.
     - **legacy**: Backward compatible format with support_desc, support_alias fields
 
-    **Performance:**
-    - Token-based candidate filtering for fast fuzzy matching
-    - Inverted index for O(1) exact lookups
-    - Optimized for large dictionaries (10K+ aliases)
-
     **Examples:**
-    - New format: `/products/search?query=qni` or `/products/search?query=qni&format=new`
-    - Legacy format: `/products/search?query=qni&format=legacy`
+    - `GET /products/search?query=AIX`  → TLSRedirectResponse (AIX is a TLS product)
+    - `GET /products/search?query=qni`  → SearchResponse (standard product)
+    - `GET /products/search?query=qni&format=legacy` → LegacySearchResponse
     - No LLM: `/products/search?query=qni&llm_rerank=false`
     """
-    global matcher
+    global matcher, tls_checker
 
     if matcher is None:
         raise HTTPException(status_code=500, detail="Matcher not initialized")
@@ -135,14 +168,23 @@ def search_products(
             enable_llm_reranking=llm_rerank,
         )
 
+    # ------------------------------------------------------------------ #
+    # TLS intercept — check top result before building the full response  #
+    # ------------------------------------------------------------------ #
+    if tls_checker is not None and tls_checker.loaded:
+        tls_hit = tls_checker.check_results(results)
+        if tls_hit is not None:
+            return tls_hit   # TLSRedirectResponse payload
+
+    # ------------------------------------------------------------------ #
+    # Normal response path                                                 #
+    # ------------------------------------------------------------------ #
     execution_time = (time.time() - start_time) * 1000  # Convert to ms
 
     # Determine whether the LLM actually reranked (all items carry the same flag)
     reranked_by_llm = bool(results and results[0].get("reranked_by_llm", False))
 
-    # Return format based on parameter
     if format == "legacy":
-        # Legacy format: support_desc, support_alias (with optional confidence)
         legacy_results = []
         for result in results:
             legacy_results.append({

@@ -7,11 +7,17 @@ USER 0
 WORKDIR /app
 
 # Install build dependencies (gcc needed for ahocorasick C extension)
-RUN dnf install -y gcc && dnf clean all
+# Clean up in same layer to reduce image size
+RUN dnf install -y gcc && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 # Copy and install production-only Python dependencies
 COPY config/requirements-prod.txt .
-RUN pip install --no-cache-dir -r requirements-prod.txt
+RUN pip install --no-cache-dir -r requirements-prod.txt && \
+    dnf remove -y gcc && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf /root/.cache
 
 # Copy application code and data
 COPY src/ ./src/
@@ -33,8 +39,6 @@ RUN chown -R 1001:0 /app && \
 # Switch to non-root user
 USER 1001
 
-# Expose Code Engine default port
 EXPOSE 8080
 
-# Run with uvicorn for production
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

@@ -54948,6 +54948,84 @@
           "SLC_CODE": "SCZA8",
           "PRODUCT_NAME": "TPF"
         }
+      ],
+      "api connect": [
+        {
+          "SLC_CODE": "SAIQ2",
+          "PRODUCT_NAME": "API Connect"
+        }
+      ],
+      "business automation workflow": [
+        {
+          "SLC_CODE": "SAIN8",
+          "PRODUCT_NAME": "Business Automation Workflow"
+        }
+      ],
+      "db2 for z os": [
+        {
+          "SLC_CODE": "SAAI8",
+          "PRODUCT_NAME": "Db2 for z/OS"
+        }
+      ],
+      "financial transaction manager": [
+        {
+          "SLC_CODE": "SBFF3",
+          "PRODUCT_NAME": "Financial Transaction Manager"
+        }
+      ],
+      "maximo application suite": [
+        {
+          "SLC_CODE": "SBIK2",
+          "PRODUCT_NAME": "Maximo Application Suite"
+        }
+      ],
+      "openpages": [
+        {
+          "SLC_CODE": "SBFD6",
+          "PRODUCT_NAME": "OpenPages"
+        }
+      ],
+      "qradar siem": [
+        {
+          "SLC_CODE": "SBSC3",
+          "PRODUCT_NAME": "QRadar SIEM"
+        }
+      ],
+      "sterling order management": [
+        {
+          "SLC_CODE": "SBWI5",
+          "PRODUCT_NAME": "Sterling Order Management"
+        }
+      ],
+      "operational decision manager": [
+        {
+          "SLC_CODE": "SAIP4",
+          "PRODUCT_NAME": "Operational Decision Manager"
+        }
+      ],
+      "storage scale": [
+        {
+          "SLC_CODE": "SCSB6",
+          "PRODUCT_NAME": "Storage Scale"
+        }
+      ],
+      "storage fusion": [
+        {
+          "SLC_CODE": "SCSTX",
+          "PRODUCT_NAME": "Storage Fusion"
+        }
+      ],
+      "web_sphere application server": [
+        {
+          "SLC_CODE": "SAIM8",
+          "PRODUCT_NAME": "WebSphere Application Server"
+        }
+      ],
+      "web_sphere application server for ibm i": [
+        {
+          "SLC_CODE": "SCPL5",
+          "PRODUCT_NAME": "WebSphere Application Server for IBM i"
+        }
       ]
     }
   }

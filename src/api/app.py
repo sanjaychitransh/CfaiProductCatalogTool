@@ -19,9 +19,12 @@ from fastapi.openapi.utils import get_openapi
 from src.core.matcher import ProductMatcher
 from src.utils.cloudant_client import load_match_dictionary_from_cloudant
 
+# Import TLS checker
+from src.core.tls_checker import TLSChecker
+
 # Import route modules
-from .routes import search_router, products_router, health_router
-from .routes import search, products, health
+from .routes import search_router, products_router, health_router, search_v0_router
+from .routes import search, products, health, search_v0
 
 # Allowed CORS origins — defaults to the public Code Engine URL;
 # override at runtime via CORS_ALLOWED_ORIGINS (comma-separated).
@@ -50,10 +53,16 @@ app = FastAPI(
     - N-gram: Typo tolerance
     - SLC_CODE grouping: Deduplicated results
 
+    **TLS Routing:**
+    When the top search result belongs to a TLS-owned product the
+    `/products/search` endpoint returns a redirect notice instead of
+    product names.  The original behaviour (no TLS check) remains
+    available at `/v0/products/search` for fallback / comparison.
+
     **Full Pipeline (`/products/answer`):**
     BM25 + RapidFuzz → LLM Reranking → Evidence/Confidence Validation → AEO Structured Answer
     """,
-    version="3.0.0",
+    version="4.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -150,7 +159,7 @@ def _load_match_dictionary() -> dict:
 
 @app.on_event("startup")
 def startup_event():
-    """Initialize the matcher on application startup."""
+    """Initialize the matcher and TLS checker on application startup."""
     global matcher
 
     # Delimiter normalization dictionary
@@ -179,8 +188,13 @@ def startup_event():
         use_enhanced=use_enhanced
     )
 
-    # Set matcher in route modules
+    # Initialize TLS checker
+    tls_checker = TLSChecker("data/tls_assistant_slc_code_mappings.json")
+
+    # Set matcher (and TLS checker) in route modules
     search.set_matcher(matcher)
+    search.set_tls_checker(tls_checker)
+    search_v0.set_matcher(matcher)
     products.set_matcher(matcher)
     health.set_matcher(matcher)
 
@@ -197,8 +211,9 @@ def startup_event():
 
 # Include routers
 app.include_router(health_router)
-app.include_router(search_router)
+app.include_router(search_router)           # primary  — with TLS intercept
 app.include_router(products_router)
+app.include_router(search_v0_router)        # secondary — original behaviour (no TLS check)
 
 
 if __name__ == "__main__":
