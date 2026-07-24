@@ -7,9 +7,10 @@ Implements sophisticated confidence scoring based on:
 - Contextual boosts (platform keywords, session history, model numbers)
 
 Score Range: 0.00 - 1.00 (two decimal precision)
+Floor: 0.00 — score is always non-negative (penalties cannot push below zero)
 """
 
-from typing import Dict, List, Any, Optional, Set
+from typing import Dict, List, Any, Optional, Set, Tuple
 import re
 
 
@@ -76,39 +77,38 @@ class ConfidenceScorer:
             used_fallback: Whether fallback token logic was used
             
         Returns:
-            Confidence score (0.00-1.00) with two decimal precision
+            Confidence score (0.00-1.00) with two decimal precision.
+            Always ≥ 0.00 — penalties cannot push the score below zero.
         """
         # Step 1: Determine base score from match strength
         base_score = self._get_base_score(
             match_type=match_type,
             match_score=match_score,
             matched_alias=matched_alias,
-            product_count=product_count
+            product_count=product_count,
         )
-        
+
         # Step 2: Apply disambiguation penalties
         penalties = self._calculate_penalties(
             query=query,
             matched_alias=matched_alias,
             product_count=product_count,
             candidate_count=candidate_count,
-            used_fallback=used_fallback
+            used_fallback=used_fallback,
         )
-        
+
         # Step 3: Apply contextual boosts
         boosts = self._calculate_boosts(
             query=query,
             matched_alias=matched_alias,
-            product_code=product_code
+            product_code=product_code,
         )
-        
-        # Step 4: Calculate final score
+
+        # Step 4: Calculate final score — floor at 0.00, cap at 1.00
         confidence = base_score - penalties + boosts
-        
-        # Step 5: Cap at 1.00 and format to 2 decimal places
-        confidence = min(confidence, 1.00)
+        confidence = max(0.00, min(confidence, 1.00))
         confidence = round(confidence, 2)
-        
+
         return confidence
     
     def _get_base_score(
@@ -287,18 +287,76 @@ class ConfidenceScorer:
         """Clear session history."""
         self.session_history.clear()
     
+    def explain(
+        self,
+        match_type: str,
+        match_score: float,
+        query: str,
+        matched_alias: str,
+        product_count: int,
+        candidate_count: int,
+        product_code: str,
+        used_fallback: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Return a full breakdown of the confidence calculation for a match.
+
+        Useful for debugging, audit trails, and Swagger exploration.
+        Calls the same internal helpers as ``calculate_confidence`` so the
+        numbers are always consistent.
+
+        Returns:
+            Dict with keys: match_type, base_score, penalties, boosts,
+            final_score, calculation (human-readable formula string).
+        """
+        base_score = self._get_base_score(
+            match_type=match_type,
+            match_score=match_score,
+            matched_alias=matched_alias,
+            product_count=product_count,
+        )
+        penalties = self._calculate_penalties(
+            query=query,
+            matched_alias=matched_alias,
+            product_count=product_count,
+            candidate_count=candidate_count,
+            used_fallback=used_fallback,
+        )
+        boosts = self._calculate_boosts(
+            query=query,
+            matched_alias=matched_alias,
+            product_code=product_code,
+        )
+        final_score = max(0.00, min(base_score - penalties + boosts, 1.00))
+        final_score = round(final_score, 2)
+
+        return {
+            "match_type": match_type,
+            "base_score": round(base_score, 2),
+            "penalties": round(penalties, 2),
+            "boosts": round(boosts, 2),
+            "final_score": final_score,
+            "calculation": (
+                f"{base_score:.2f} - {penalties:.2f} + {boosts:.2f} "
+                f"= {final_score:.2f}"
+            ),
+        }
+
+    # ── Legacy alias kept for backward compatibility ──────────────────────
     def get_confidence_explanation(
         self,
         match_type: str,
         base_score: float,
         penalties: float,
         boosts: float,
-        final_score: float
+        final_score: float,
     ) -> Dict[str, Any]:
         """
         Generate detailed explanation of confidence score calculation.
-        
-        Useful for debugging and transparency.
+
+        .. deprecated::
+            Prefer :meth:`explain` — it recomputes all components from the
+            raw inputs so the values are guaranteed to be consistent.
         """
         return {
             "match_type": match_type,
@@ -306,7 +364,10 @@ class ConfidenceScorer:
             "penalties": round(penalties, 2),
             "boosts": round(boosts, 2),
             "final_score": round(final_score, 2),
-            "calculation": f"{base_score:.2f} - {penalties:.2f} + {boosts:.2f} = {final_score:.2f}"
+            "calculation": (
+                f"{base_score:.2f} - {penalties:.2f} + {boosts:.2f} "
+                f"= {final_score:.2f}"
+            ),
         }
 
 

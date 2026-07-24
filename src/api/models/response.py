@@ -14,6 +14,14 @@ class ProductResult(BaseModel):
     product_name: Optional[str] = Field(None, description="Product name")
     matched_aliases: List[str] = Field(..., description="Aliases that matched the query")
     match_types: List[str] = Field(..., description="Types of matches (exact_full, exact_phrase, fuzzy)")
+    alias_similarity: Optional[float] = Field(
+        None,
+        description=(
+            "Best ratio() similarity between the normalised query and the product's "
+            "matched aliases (0.0-100.0). Used internally for TLS tie-breaking and "
+            "exposed here for transparency."
+        ),
+    )
 
 
 class SearchResponse(BaseModel):

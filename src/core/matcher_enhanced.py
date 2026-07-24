@@ -78,57 +78,48 @@ class EnhancedProductMatcher:
         """Build all search indexes at initialization."""
         exact_match = self.match_dictionary.get("exact_match", {})
         fuzzy_match = self.match_dictionary.get("fuzzy_match", {})
-        
+
         # 1. Build Aho-Corasick automaton for exact matching
-        print("Building Aho-Corasick automaton...")
         for alias, products in exact_match.items():
             norm_alias = self.clean_string(alias)
             if not norm_alias:
                 continue
-            
-            # Add to automaton
             self.ac_automaton.add_word(norm_alias, (norm_alias, products))
             self.exact_phrase_map[norm_alias] = products
-        
+
         # Finalize automaton (required for searching)
         self.ac_automaton.make_automaton()
-        print(f"✓ Aho-Corasick: {len(self.exact_phrase_map)} exact phrases indexed")
-        
+
         # 2. Build BM25 index for fuzzy matching
-        print("Building BM25 index...")
         tokenized_corpus = []
-        
+
         for alias, products in fuzzy_match.items():
             norm_alias = self.clean_string(alias)
             if not norm_alias:
                 continue
-            
+
             idx = len(self.bm25_corpus)
             self.bm25_corpus.append(norm_alias)
             self.bm25_routes.append(products)
-            
+
             # Tokenize for BM25
             tokens = self.tokenize(norm_alias)
             tokenized_corpus.append(tokens)
-            
+
             # Build token index (legacy)
             token_set = set(tokens)
             for token in token_set:
                 if len(token) >= 2:
                     self.token_to_fuzzy_ids[token].add(idx)
-            
+
             # Build n-gram index for typo tolerance
             ngrams = self._generate_ngrams(norm_alias, self.ngram_size)
             for ngram in ngrams:
                 self.ngram_index[ngram].add(idx)
-        
+
         # Initialize BM25
         if tokenized_corpus:
             self.bm25_index = BM25Okapi(tokenized_corpus)
-            print(f"✓ BM25: {len(self.bm25_corpus)} documents indexed")
-            print(f"✓ N-gram: {len(self.ngram_index)} {self.ngram_size}-grams indexed")
-        else:
-            print("⚠ Warning: No fuzzy match data for BM25 index")
 
     def _generate_ngrams(self, text: str, n: int) -> Set[str]:
         """
@@ -402,48 +393,53 @@ class EnhancedProductMatcher:
         self,
         query: str,
         fuzzy_threshold: float = 0.70,
-        fuzzy_limit: int = 30
-    ) -> List[Tuple[str, float, str, List[Dict[str, str]]]]:
+        fuzzy_limit: int = 30,
+    ) -> Tuple[List[Tuple[str, float, str, List[Dict[str, str]]]], bool]:
         """
         Combined search with smart heuristics.
-        
+
         Pipeline:
         1. Aho-Corasick exact matching (always)
         2. BM25 + RapidFuzz fuzzy matching (conditional)
         3. N-gram fallback (if needed)
-        
+
         Returns:
-            Ranked list of all matches
+            (matches, used_fallback) — ranked list of all matches and whether
+            the last-resort scan-all fallback was triggered.
         """
         query_norm = self.clean_string(query)
-        
+
         # Stage 1: Exact matching with Aho-Corasick
         matches = self.exact_match_ahocorasick(query_norm)
-        
+
         # Stage 2: Fuzzy matching (conditional)
         should_fuzzy = (
-            not self.is_machine_code(query_norm) and 
-            not self.is_small_query(query_norm)
+            not self.is_machine_code(query_norm)
+            and not self.is_small_query(query_norm)
         )
-        
+
+        used_fallback = False
         if should_fuzzy:
             fuzzy_matches = self.fuzzy_match_enhanced(
-                query_norm, 
-                threshold=fuzzy_threshold, 
+                query_norm,
+                threshold=fuzzy_threshold,
                 limit=fuzzy_limit,
                 use_bm25=True,
-                use_ngram_fallback=True
+                use_ngram_fallback=True,
             )
+            # fuzzy_match_enhanced returns a plain list (no fallback flag yet);
+            # treat as no-fallback for now — EnhancedProductMatcher always has
+            # BM25/n-gram available so the scan-all path is never taken here.
             matches.extend(fuzzy_matches)
-        
+
         # Ranking: exact > fuzzy, then by score, then by length
         def rank_key(item):
             alias, score, match_type, _ = item
             exact_priority = 1 if "exact" in match_type else 0
             return (exact_priority, score, len(alias))
-        
+
         matches.sort(key=rank_key, reverse=True)
-        return matches
+        return matches, used_fallback
 
     def identify_products(
         self,
@@ -451,30 +447,30 @@ class EnhancedProductMatcher:
         fuzzy_threshold: float = 0.70,
         return_count: int = 10,
         fuzzy_limit: int = 30,
-        char_limit: int = 1000
+        char_limit: int = 1000,
     ) -> List[Dict[str, Any]]:
         """
         Main API: Identify products with SLC_CODE grouping and confidence scoring.
-        
+
         Process:
         1. Get all matches (exact + fuzzy)
         2. Group by SLC_CODE
         3. Aggregate scores (max), aliases (list), match types (set)
         4. Calculate confidence scores if enabled
         5. Rank and return top N
-        
+
         Returns:
             List of product dicts grouped by SLC_CODE with confidence scores
         """
         query = str(query)[:char_limit]
-        
-        # Get all matches
-        matches = self.get_all_matches(
+
+        # Get all matches; used_fallback=True when scan-all path was taken
+        matches, used_fallback = self.get_all_matches(
             query=query,
             fuzzy_threshold=fuzzy_threshold,
-            fuzzy_limit=fuzzy_limit
+            fuzzy_limit=fuzzy_limit,
         )
-        
+
         # Group by SLC_CODE
         grouped: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
             "score": 0.0,
@@ -483,74 +479,80 @@ class EnhancedProductMatcher:
             "matched_aliases": [],
             "match_types": set(),
             "best_match_alias": None,
-            "best_match_type": None
+            "best_match_type": None,
+            "best_match_alias_product_count": 1,
         })
-        
+
         for alias, score, match_type, products in matches:
             for product in products:
                 code = product.get("SLC_CODE")
                 name = product.get("PRODUCT_NAME")
-                
+
                 if not code:
                     continue
-                
+
                 item = grouped[code]
                 item["product_code"] = code
                 item["product_name"] = name
-                
+
                 # Track best match for confidence calculation
-                if score > item["score"]:
+                current_is_exact = (
+                    item["best_match_type"] and
+                    item["best_match_type"].startswith("exact")
+                )
+                new_is_exact = match_type.startswith("exact")
+                if (score > item["score"]) or (
+                    score == item["score"] and new_is_exact and not current_is_exact
+                ):
                     item["score"] = round(score, 6)
                     item["best_match_alias"] = alias
                     item["best_match_type"] = match_type
-                
+                    item["best_match_alias_product_count"] = len(products)
+
                 if alias not in item["matched_aliases"]:
-                    item["matched_aliases"].append(alias)
-                
+                    if new_is_exact:
+                        item["matched_aliases"].insert(0, alias)
+                    else:
+                        item["matched_aliases"].append(alias)
+
                 item["match_types"].add(match_type)
-        
+
         # Convert to list and calculate confidence scores
         results = []
         total_candidates = len(grouped)
-        
+
         for _, item in grouped.items():
             item["match_types"] = sorted(list(item["match_types"]))
-            
+
             # Calculate confidence score if enabled
             if self.enable_confidence_scoring and self.confidence_scorer:
-                # Determine if fallback was used (ngram or low score fuzzy)
-                used_fallback = (
-                    "ngram" in item["best_match_type"] or
-                    ("fuzzy" in item["best_match_type"] and item["score"] < 0.75)
-                )
-                
                 confidence = self.confidence_scorer.calculate_confidence(
                     match_type=item["best_match_type"],
                     match_score=item["score"],
                     query=query,
                     matched_alias=item["best_match_alias"],
-                    product_count=len(item["matched_aliases"]),
+                    product_count=item["best_match_alias_product_count"],
                     candidate_count=total_candidates,
                     product_code=item["product_code"],
-                    used_fallback=used_fallback
+                    used_fallback=used_fallback,
                 )
                 item["confidence"] = confidence
             else:
-                # Fallback: use match score as confidence
                 item["confidence"] = round(item["score"], 2)
-            
-            # Clean up temporary fields
+
+            # Clean up internal tracking fields
             del item["best_match_alias"]
             del item["best_match_type"]
-            
+            del item["best_match_alias_product_count"]
+
             results.append(item)
-        
+
         # Final ranking: exact > confidence > score > alias count
         def result_rank(item):
             has_exact = any("exact" in mt for mt in item["match_types"])
             exact_priority = 1 if has_exact else 0
             return (exact_priority, item["confidence"], item["score"], len(item["matched_aliases"]))
-        
+
         results.sort(key=result_rank, reverse=True)
         return results[:return_count]
 

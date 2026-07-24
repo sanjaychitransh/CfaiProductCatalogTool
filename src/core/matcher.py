@@ -444,14 +444,21 @@ class ProductMatcher:
     def get_fuzzy_candidates(
         self,
         query_norm: str,
-        max_candidates: int = 500
+        max_candidates: int = 500,
+        bm25_top_k: int = 20,
     ) -> Tuple[List[Tuple[int, str]], bool]:
         """
         Fast candidate filtering using BM25 (if available) or token overlap.
 
         Args:
             query_norm: Normalized query string
-            max_candidates: Maximum candidates to return
+            max_candidates: Maximum candidates to return from token/fallback paths
+            bm25_top_k: Number of BM25 candidates to retrieve before RapidFuzz
+                        re-scores them.  Keeping this tight (default 20) ensures
+                        that BM25 acts as a focused pre-filter — matching the
+                        described pipeline: "BM25 → Top 20 Candidates → RapidFuzz
+                        Re-score".  N-gram augmentation still kicks in when BM25
+                        returns fewer than 20 results.
 
         Returns:
             Tuple of:
@@ -459,7 +466,7 @@ class ProductMatcher:
               - used_fallback: True when no token/BM25 candidates were found and
                 the matcher fell back to scanning all aliases (triggers -0.15 penalty)
         """
-        # Use BM25 if available and enabled
+        # ── BM25 path (enhanced mode) ────────────────────────────────────────
         if self.use_enhanced and self.bm25_index:
             query_tokens = self.tokenize(query_norm)
             if query_tokens:
@@ -467,13 +474,20 @@ class ProductMatcher:
                 top_indices = sorted(
                     range(len(scores)),
                     key=lambda i: scores[i],
-                    reverse=True
-                )[:max_candidates]
-                candidates = [(idx, self.fuzzy_aliases[idx]) for idx in top_indices if scores[idx] > 0]
+                    reverse=True,
+                )[:bm25_top_k]
+                candidates = [
+                    (idx, self.fuzzy_aliases[idx])
+                    for idx in top_indices
+                    if scores[idx] > 0
+                ]
 
-                # Add n-gram candidates if BM25 returns few results
-                if len(candidates) < 20 and self.ngram_index:
-                    ngram_candidates = self._get_ngram_candidates(query_norm, max_candidates)
+                # Augment with n-gram candidates when BM25 returns few results
+                # (handles typos and out-of-vocabulary terms)
+                if len(candidates) < bm25_top_k and self.ngram_index:
+                    ngram_candidates = self._get_ngram_candidates(
+                        query_norm, bm25_top_k
+                    )
                     existing_ids = {idx for idx, _ in candidates}
                     for idx, text in ngram_candidates:
                         if idx not in existing_ids:
@@ -482,9 +496,9 @@ class ProductMatcher:
                 if candidates:
                     return candidates[:max_candidates], False
 
-        # Token overlap fallback
+        # ── Token-overlap fallback (non-enhanced or BM25 returned nothing) ──
         tokens = self.tokenize(query_norm)
-        candidate_ids = set()
+        candidate_ids: Set[int] = set()
         for token in tokens:
             candidate_ids.update(self.token_to_fuzzy_ids.get(token, set()))
 
@@ -493,8 +507,8 @@ class ProductMatcher:
             candidates.sort(key=lambda x: len(x[1]), reverse=True)
             return candidates[:max_candidates], False
 
-        # Last-resort fallback: no token or BM25 signal — scan all aliases
-        # This is the "fallback token logic" that triggers the -0.15 penalty
+        # ── Last-resort: no signal at all — scan all aliases ─────────────────
+        # Triggers -0.15 confidence penalty (used_fallback=True)
         fallback_count = min(max_candidates, len(self.fuzzy_aliases))
         return [(i, self.fuzzy_aliases[i]) for i in range(fallback_count)], True
 
@@ -540,53 +554,63 @@ class ProductMatcher:
         query: str,
         threshold: float = 0.70,
         limit: int = 30,
-        scorer=fuzz.partial_ratio
+        scorer=None,
     ) -> List[Tuple[str, float, str, List[Dict[str, str]]]]:
         """
         Fuzzy matching with candidate pre-filtering.
-        
-        Performance optimization:
-        - Only fuzzy match against pre-filtered candidates (token overlap)
-        - Use rapidfuzz's optimized C++ implementation
-        - Configurable scorer (partial_ratio, token_sort_ratio, etc.)
-        
+
+        Pipeline (mirrors the described architecture):
+          User Query → Normalization → BM25 Search → Top 20 Candidates
+          → RapidFuzz Re-score → return ranked matches
+
+        Scorer selection:
+        - ``token_sort_ratio`` is used by default.  It handles word-order
+          variations well (e.g. "Server Application WebSphere" still matches
+          "WebSphere Application Server") and is more robust than
+          ``partial_ratio`` for multi-token IBM product names.
+        - Pass an explicit scorer to override (e.g. ``fuzz.partial_ratio``
+          for single-keyword queries where substring matching is preferred).
+
         Args:
-            query: Raw query string
+            query: Raw query string (already normalised by callers)
             threshold: Minimum similarity score (0.0-1.0)
             limit: Maximum matches to return
-            scorer: Fuzzy matching algorithm
-            
+            scorer: RapidFuzz scorer to use; defaults to ``fuzz.token_sort_ratio``
+
         Returns:
-            List of (alias, score, match_type, products)
+            (matches, used_fallback) where matches is a list of
+            (alias, score, match_type, products) tuples.
         """
+        if scorer is None:
+            scorer = fuzz.token_sort_ratio
+
         query_norm = self.clean_string(query)
 
-        # Get pre-filtered candidates; used_fallback signals -0.15 penalty
+        # Retrieve pre-filtered candidates; used_fallback signals -0.15 penalty
         candidates, used_fallback = self.get_fuzzy_candidates(query_norm)
 
         if not candidates:
             return [], False
 
-        # Extract candidate texts and build reverse lookup
+        # Build texts list and reverse lookup for routing
         candidate_texts = [candidate_text for _, candidate_text in candidates]
         candidate_map = {candidate_text: idx for idx, candidate_text in candidates}
 
-        # Perform fuzzy matching (rapidfuzz is highly optimized)
+        # RapidFuzz re-scores the short candidate list (C++ speed, accurate)
         extracted = process.extract(
             query_norm,
             candidate_texts,
             scorer=scorer,
             score_cutoff=int(threshold * 100),  # rapidfuzz uses 0-100 scale
-            limit=limit
+            limit=limit,
         )
 
-        # Convert to standard format
         matches = []
         for alias, score, _ in extracted:
             idx = candidate_map[alias]
             matches.append((alias, score / 100.0, "fuzzy", self.fuzzy_routes[idx]))
 
-        # Sort by score, then length
+        # Primary sort: score DESC, secondary: alias length DESC (specificity)
         matches.sort(key=lambda x: (x[1], len(x[0])), reverse=True)
         return matches, used_fallback
 

@@ -24,9 +24,9 @@ def root():
     """Root endpoint redirect to docs."""
     return {
         "message": "Product Catalog API",
-        "version": "3.0.0",
+        "version": "5.0.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }
 
 

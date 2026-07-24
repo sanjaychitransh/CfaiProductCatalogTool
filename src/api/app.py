@@ -39,20 +39,20 @@ app = FastAPI(
     **Authentication:** All endpoints (except `/health`) require a Bearer token.
     Click **Authorize** and enter your token to use the interactive docs.
 
-    **Enhanced Search Stack:**
-    - Aho-Corasick: Fast exact phrase matching
-    - BM25: Weighted candidate retrieval
-    - RapidFuzz: Accurate reranking
-    - N-gram: Typo tolerance
-    - SLC_CODE grouping: Deduplicated results
+    **Search Pipeline (v5):**
+    1. **Normalization** — lowercase, punctuation → space, delimiter joining, noise-word removal
+    2. **BM25 Search** — weighted inverted-index retrieval of Top-20 candidates
+    3. **N-gram Augmentation** — typo-tolerant candidate expansion when BM25 returns < 20 hits
+    4. **RapidFuzz Re-score** — `token_sort_ratio` re-ranks the short candidate list
+    5. **Confidence Calculation** — base score ± penalties ± boosts, floored at 0.00
+    6. **TLS Routing** — top result checked against TLS SLC-code mappings
 
-    **TLS Routing:**
-    When the top search result belongs to a TLS-owned product the
-    `/products/search` endpoint returns a redirect notice instead of
-    product names.  The original behaviour (no TLS check) remains
-    available at `/v0/products/search` for fallback / comparison.
+    **Coverage:** typos, aliases, partial names, extra words, case-insensitive.
+    **Pros:** no external LLM, deterministic, explainable, low-latency, scales to 10 K+ aliases.
+
+    **Fallback endpoint:** `/v0/products/search` — identical pipeline, TLS check bypassed.
     """,
-    version="4.0.0",
+    version="5.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )

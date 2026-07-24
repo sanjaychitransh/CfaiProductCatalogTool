@@ -12,10 +12,11 @@ Use this endpoint to:
 - Support clients that need the raw product list regardless of TLS ownership
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Literal
 import time
 
+from ..auth import require_token
 from ..models.response import SearchResponse, LegacySearchResponse
 
 router = APIRouter(prefix="/v0/products", tags=["Search (v0 — no TLS check)"])
@@ -30,7 +31,7 @@ def set_matcher(matcher_instance):
     matcher = matcher_instance
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/search", response_model=SearchResponse, dependencies=[Depends(require_token)])
 def search_products_v0(
     query: str = Query(
         ...,
