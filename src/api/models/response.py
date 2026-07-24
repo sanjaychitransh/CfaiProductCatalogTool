@@ -24,6 +24,13 @@ class ProductResult(BaseModel):
     )
 
 
+class SearchResponse(BaseModel):
+    """Search API response."""
+    query: str = Field(..., description="Original search query")
+    normalized_query: str = Field(..., description="Cleaned/normalized query")
+    results: List[ProductResult] = Field(..., description="Matched products")
+    execution_time_ms: float = Field(..., description="Query execution time in milliseconds")
+    result_count: int = Field(..., description="Number of results returned")
 
 
 class LegacyProductResult(BaseModel):
@@ -37,7 +44,6 @@ class LegacyProductResult(BaseModel):
 
 class LegacySearchResponse(BaseModel):
     """Legacy API response format."""
-    tls_product: bool = Field(False, description="Always False — this is not a TLS product")
     results: List[LegacyProductResult]
 
 
@@ -66,23 +72,17 @@ class TLSRedirectResponse(BaseModel):
     """
     Returned when the top search result belongs to a TLS-owned product.
 
-    The conversation should be handed off to the named TLS assistant.
-    ``tls_product`` is always ``True`` in this response shape.
+    Instead of product details the caller receives a redirect notice so
+    the conversation can be handed off to the appropriate TLS agent.
     """
     tls_product: bool = Field(True, description="Always True — signals a TLS product intercept")
+    message: str = Field(
+        "This is a TLS product. Redirected to TLS agent.",
+        description="Human-readable redirect notice"
+    )
     slc_code: str = Field(..., description="Matched SLC code")
     product_name: Optional[str] = Field(None, description="TLS product name")
     assistant: str = Field(..., description="Name of the TLS assistant to redirect to")
-
-
-class SearchResponse(BaseModel):
-    """Search API response (non-TLS products)."""
-    tls_product: bool = Field(False, description="Always False — this is not a TLS product")
-    query: str = Field(..., description="Original search query")
-    normalized_query: str = Field(..., description="Cleaned/normalized query")
-    results: List[ProductResult] = Field(..., description="Matched products")
-    execution_time_ms: float = Field(..., description="Query execution time in milliseconds")
-    result_count: int = Field(..., description="Number of results returned")
 
 
 # Made with Bob
