@@ -3,7 +3,6 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional, Tuple, Set, TypedDict
 import re
 from .confidence_scorer import ConfidenceScorer
-from .llm_reranker import get_reranker
 
 # Optional enhanced imports - graceful fallback if not available
 try:
@@ -689,8 +688,6 @@ class ProductMatcher:
         return_count: int = 10,
         fuzzy_limit: int = 30,
         char_limit: int = 1000,
-        enable_llm_reranking: bool = True,
-        llm_rerank_top_n: int = 5,
     ) -> List[Dict[str, Any]]:
         """
         Main API method: identify products from query.
@@ -702,11 +699,7 @@ class ProductMatcher:
         3. BM25 + RapidFuzz → all matches (exact + fuzzy)
         4. Group by product code (SLC_CODE), score aggregation
         5. Calculate confidence scores
-        6. Rank → Top 10 candidates
-        7. Take Top ``llm_rerank_top_n`` (default 5) → LLM Reranking
-             ├── Success → reranked results (reranked_by_llm=True)
-             └── Failure → BM25 + RapidFuzz results (reranked_by_llm=False)
-        8. Return top ``return_count`` results
+        6. Rank → Top 10 candidates, return top ``return_count``
 
         Args:
             query: User search query
@@ -714,12 +707,9 @@ class ProductMatcher:
             return_count: Maximum results to return
             fuzzy_limit: Maximum fuzzy candidates to match
             char_limit: Maximum query length to process
-            enable_llm_reranking: Whether to attempt LLM reranking
-            llm_rerank_top_n: How many top candidates to send to the LLM
 
         Returns:
-            List of product dicts with scores, codes, names, aliases, confidence,
-            and a boolean ``reranked_by_llm`` field.
+            List of product dicts with scores, codes, names, aliases, and confidence.
         """
         # Truncate long queries
         query = str(query)[:char_limit]
@@ -872,56 +862,7 @@ class ProductMatcher:
             )
 
         results.sort(key=result_rank, reverse=True)
-        top10 = results[:10]
-
-        # ── Stage 7: LLM Reranking (Top 5 of the Top 10) ─────────────────
-        reranked_by_llm = False
-        if enable_llm_reranking:
-            try:
-                reranker = get_reranker()
-                # bm25_top1_id: the product BM25+RapidFuzz ranked #1 before LLM
-                bm25_top1_id = top10[0]["product_code"] if top10 else None
-                top10, reranked_by_llm, llm_top1_id = reranker.rerank(query, top10)
-            except Exception as exc:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "LLM reranking raised an unexpected error (%s). "
-                    "Falling back to BM25+RapidFuzz order.", exc
-                )
-                reranked_by_llm = False
-                bm25_top1_id = None
-                llm_top1_id = None
-        else:
-            bm25_top1_id = None
-            llm_top1_id = None
-
-        # ── Conditional confidence boost ───────────────────────────────────
-        # Apply +0.05 to the top result ONLY when all three conditions hold:
-        #   1. LLM reranking succeeded
-        #   2. LLM #1 agrees with BM25 #1 — both retrieval signals converge
-        #   3. The top result is a fuzzy match (exact matches are already ≥ 0.75;
-        #      adding a boost there would artificially inflate already-strong signals)
-        # This is NOT a blanket "LLM ran → +0.05" rule.
-        if (
-            reranked_by_llm
-            and top10
-            and llm_top1_id is not None
-            and bm25_top1_id is not None
-            and llm_top1_id == bm25_top1_id          # both agree on the same #1
-            and not any(                              # top result is fuzzy, not exact
-                mt.startswith("exact")
-                for mt in top10[0].get("match_types", [])
-            )
-        ):
-            top10[0]["confidence"] = round(
-                min(top10[0]["confidence"] + 0.05, 1.00), 2
-            )
-
-        # Attach reranked_by_llm flag to every result
-        for item in top10:
-            item["reranked_by_llm"] = reranked_by_llm
-
-        return top10[:return_count]
+        return results[:return_count]
 
     def wml_product_identification(
         self,

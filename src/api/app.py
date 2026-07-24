@@ -15,29 +15,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-# Import the enhanced ProductMatcher
 from src.core.matcher import ProductMatcher
-from src.utils.cloudant_client import load_match_dictionary_from_cloudant
-
-# Import TLS checker
 from src.core.tls_checker import TLSChecker
 
-# Import route modules
 from .routes import search_router, products_router, health_router, search_v0_router
 from .routes import search, products, health, search_v0
 
-# Allowed CORS origins — defaults to the public Code Engine URL;
-# override at runtime via CORS_ALLOWED_ORIGINS (comma-separated).
+# Allowed CORS origins — override via CORS_ALLOWED_ORIGINS (comma-separated).
 _ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "https://frowsy-glareless-kylie.ngrok-free.dev",
+        "https://cfaiproducts.2b06dgt5gcrj.us-south.codeengine.appdomain.cloud",
     ).split(",")
     if o.strip()
 ]
 
-# Create FastAPI application
 app = FastAPI(
     title="Product Catalog API",
     description="""
@@ -58,16 +51,12 @@ app = FastAPI(
     `/products/search` endpoint returns a redirect notice instead of
     product names.  The original behaviour (no TLS check) remains
     available at `/v0/products/search` for fallback / comparison.
-
-    **Full Pipeline (`/products/answer`):**
-    BM25 + RapidFuzz → LLM Reranking → Evidence/Confidence Validation → AEO Structured Answer
     """,
     version="4.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# Narrowed CORS — only allow the configured origin(s), read-only methods
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
@@ -90,7 +79,6 @@ def _custom_openapi():
     schema.setdefault("components", {})["securitySchemes"] = {
         "BearerAuth": {"type": "http", "scheme": "bearer"}
     }
-    # Apply BearerAuth to every route except /health (which is unauthenticated)
     for path, path_item in schema.get("paths", {}).items():
         if path == "/health":
             continue
@@ -103,11 +91,8 @@ def _custom_openapi():
 
 app.openapi = _custom_openapi
 
-# Global matcher instance
 matcher = None
 
-
-# Path to the local fallback dictionary, relative to the project root
 _LOCAL_DICT_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),  # src/api/
     "..", "..",                                   # → project root
@@ -116,45 +101,15 @@ _LOCAL_DICT_PATH = os.path.join(
 
 
 def _load_match_dictionary() -> dict:
-    """
-    Load the product-match dictionary.
-
-    Priority
-    --------
-    1. CouchDB / Cloudant  (CLOUDANT_URL + credentials)
-    2. data/product_match_dictionary.json  (local fallback)
-
-    Required environment variables for CouchDB/Cloudant
-    ----------------------------------------------------
-    CLOUDANT_URL       CouchDB service URL
-    CLOUDANT_USERNAME  Basic Auth username  (or CLOUDANT_APIKEY for IAM)
-    CLOUDANT_PASSWORD  Basic Auth password
-    """
-    # --- Attempt 1: CouchDB / Cloudant ---
-    try:
-        print("⟳ Loading match dictionary from CouchDB / Cloudant…")
-        match_dictionary = load_match_dictionary_from_cloudant()
-        print("✓ Match dictionary loaded from CouchDB / Cloudant")
-        return match_dictionary
-    except Exception as e:
-        print(f"⚠ CouchDB / Cloudant unavailable: {e}")
-        print("  ↳ Falling back to local file: data/product_match_dictionary.json")
-
-    # --- Attempt 2: local JSON file ---
+    """Load the product-match dictionary from the local JSON file."""
     local_path = os.path.normpath(_LOCAL_DICT_PATH)
-    try:
-        with open(local_path, encoding="utf-8") as fh:
-            doc = json.load(fh)
-        match_dictionary = doc.get("match_dictionary")
-        if match_dictionary is None:
-            raise KeyError("'match_dictionary' key not found in local JSON file")
-        print(f"✓ Match dictionary loaded from local file: {local_path}")
-        return match_dictionary
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to load match dictionary from both CouchDB/Cloudant and "
-            f"local file '{local_path}': {e}"
-        ) from e
+    with open(local_path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    match_dictionary = doc.get("match_dictionary")
+    if match_dictionary is None:
+        raise KeyError("'match_dictionary' key not found in local JSON file")
+    print(f"✓ Match dictionary loaded from: {local_path}")
+    return match_dictionary
 
 
 @app.on_event("startup")
@@ -162,15 +117,13 @@ def startup_event():
     """Initialize the matcher and TLS checker on application startup."""
     global matcher
 
-    # Delimiter normalization dictionary
     delimiter_dict = {
         "tcp ip": "_",
         "cloud pak": "_",
         "check sorter": "_",
         "web sphere": "_",
         "data stage": "_",
-        "z os": "_",      # z/OS — slash is collapsed to space before this runs,
-                          # so "z/os" arrives here as "z os" and must be rejoined
+        "z os": "_",
     }
 
     use_enhanced = os.getenv("USE_ENHANCED_MATCHER", "true").lower() == "true"
@@ -178,7 +131,7 @@ def startup_event():
     try:
         match_dictionary = _load_match_dictionary()
     except Exception as e:
-        print(f"✗ Failed to load match dictionary from all sources: {e}")
+        print(f"✗ Failed to load match dictionary: {e}")
         print("  ⚠ Starting with empty matcher — search endpoints will return no results.")
         match_dictionary = {"exact_match": {}, "fuzzy_match": {}}
 
@@ -188,10 +141,8 @@ def startup_event():
         use_enhanced=use_enhanced
     )
 
-    # Initialize TLS checker
     tls_checker = TLSChecker("data/tls_assistant_slc_code_mappings.json")
 
-    # Set matcher (and TLS checker) in route modules
     search.set_matcher(matcher)
     search.set_tls_checker(tls_checker)
     search_v0.set_matcher(matcher)
@@ -209,11 +160,10 @@ def startup_event():
         print(f"  - N-gram index: {len(matcher.ngram_index)} entries")
 
 
-# Include routers
 app.include_router(health_router)
-app.include_router(search_router)           # primary  — with TLS intercept
+app.include_router(search_router)
 app.include_router(products_router)
-app.include_router(search_v0_router)        # secondary — original behaviour (no TLS check)
+app.include_router(search_v0_router)
 
 
 if __name__ == "__main__":
