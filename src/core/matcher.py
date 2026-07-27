@@ -66,6 +66,11 @@ _PROTECTED_BIGRAMS: tuple = (
                       # replace_delimiter_terms rejoins them as "z_os"
     ('was', 'for'),   # WAS = WebSphere Application Server; "was for <platform>"
                       # must not have either token stripped (e.g. "was for z/os")
+    ('m365', 'platform'),  # M365 Platform — stripping 'platform' leaves only "m365"
+                           # (4 chars), which is below the fuzzy threshold AND does
+                           # not match the dict key "m365 platform" on its own.
+    ('power', 'platform'), # Power Platform Family — same pattern: stripping
+                           # 'platform' loses the product discriminator.
 )
 
 # Combined set removed from queries before matching
@@ -324,7 +329,15 @@ class ProductMatcher:
         # Force ASCII encoding (remove accents, special chars)
         query = query.encode("ascii", errors="ignore").decode()
         
-        # Normalize all punctuation/separators to spaces (including hyphens)
+        # Merge part-number hyphens: alphanumeric-hyphen-alphanumeric → concatenate.
+        # e.g. "2805-MC5" → "2805mc5", "3956-CC6" → "3956cc6", "3580-HH7" → "3580hh7".
+        # This is applied BEFORE the general punctuation→space step so that
+        # part-number connectors are collapsed (not split into two tokens).
+        # Hyphens that are NOT flanked by alphanumerics on both sides (e.g. word
+        # separators like "red - hat") fall through to the next regex unchanged.
+        query = re.sub(r"(?<=[a-zA-Z0-9])-(?=[a-zA-Z0-9])", "", query)
+
+        # Normalize all remaining punctuation/separators to spaces
         query = re.sub(r"[.,;:!?#/\s-]+", " ", query)
         
         # Apply custom delimiter normalization
