@@ -17,3 +17,12 @@ data/
 
 # Local virtual environment — never commit
 env/
+
+# Playwright MCP artefacts - never commit
+.playwright-mcp/
+
+# Test data files - never commit
+tests/
+
+# Bob artefacts - never commit
+.bob/
