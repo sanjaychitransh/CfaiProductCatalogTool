@@ -4,6 +4,14 @@ from typing import Dict, List, Any, Optional, Tuple, Set, TypedDict
 import re
 from .confidence_scorer import ConfidenceScorer
 
+# Sentence-BERT + Cross-Encoder re-ranker (optional — loaded on demand)
+try:
+    from .sbert_reranker import SBERTReranker
+    _SBERT_MODULE_AVAILABLE = True
+except ImportError:
+    SBERTReranker = None  # type: ignore
+    _SBERT_MODULE_AVAILABLE = False
+
 # Optional enhanced imports - graceful fallback if not available
 try:
     import ahocorasick
@@ -99,7 +107,8 @@ class ProductMatcher:
         match_dictionary: Dict[str, Any],
         delimiter_dict: Optional[Dict[str, str]] = None,
         use_enhanced: bool = True,
-        enable_confidence_scoring: bool = True
+        enable_confidence_scoring: bool = True,
+        sbert_reranker: Optional[Any] = None,
     ):
         """
         Initialize the matcher with dictionaries.
@@ -109,12 +118,19 @@ class ProductMatcher:
             delimiter_dict: Optional dict for term normalization (e.g., {'tcp ip': '_'})
             use_enhanced: Enable enhanced features (Aho-Corasick, BM25, N-gram) if available
             enable_confidence_scoring: Enable confidence scoring for matches
+            sbert_reranker: Optional SBERTReranker instance for semantic re-ranking.
+                            When provided, identify_products passes its final result
+                            list through the reranker as a post-processing step.
+                            All existing matching logic is unchanged.
         """
         self.delimiter_dict = delimiter_dict or {}
         self.match_dictionary = match_dictionary or {"exact_match": {}, "fuzzy_match": {}}
         self.use_enhanced = use_enhanced and ENHANCED_AVAILABLE
         self.enable_confidence_scoring = enable_confidence_scoring
-        
+
+        # Optional Sentence-BERT + Cross-Encoder semantic re-ranker
+        self.sbert_reranker = sbert_reranker
+
         # Initialize confidence scorer
         self.confidence_scorer = ConfidenceScorer() if enable_confidence_scoring else None
         
@@ -792,7 +808,7 @@ class ProductMatcher:
                 current_is_exact = item["best_match_type"] and item["best_match_type"].startswith("exact")
                 new_is_exact = match_type.startswith("exact")
                 if (score > item["score"]) or (score == item["score"] and new_is_exact and not current_is_exact):
-                    item["score"] = round(score, 6)
+                    item["score"] = round(score, 2)
                     item["best_match_alias"] = alias
                     item["best_match_type"] = match_type
                     # How many distinct products does this alias key resolve to?
@@ -873,9 +889,12 @@ class ProductMatcher:
         query_norm_for_rank = self.clean_string(query)
 
         for item in results:
-            item["alias_similarity"] = max(
-                (fuzz.ratio(query_norm_for_rank, a) for a in item["matched_aliases"]),
-                default=0.0
+            item["alias_similarity"] = round(
+                max(
+                    (fuzz.ratio(query_norm_for_rank, a) for a in item["matched_aliases"]),
+                    default=0.0,
+                ),
+                2,
             )
 
         # Final ranking: exact-backed > confidence > score > alias_similarity > alias count
@@ -899,7 +918,17 @@ class ProductMatcher:
             )
 
         results.sort(key=result_rank, reverse=True)
-        return results[:return_count]
+        results = results[:return_count]
+
+        # ── Optional: Sentence-BERT + Cross-Encoder semantic re-ranking ──────
+        # This stage runs *after* all existing lexical/fuzzy logic is complete.
+        # It re-orders the already-filtered top-N results using dense semantic
+        # similarity (bi-encoder) and joint pair scoring (cross-encoder).
+        # The existing pipeline, indexes, and confidence scores are untouched.
+        if self.sbert_reranker is not None and self.sbert_reranker.loaded:
+            results = self.sbert_reranker.rerank(query, results)
+
+        return results
 
     def wml_product_identification(
         self,

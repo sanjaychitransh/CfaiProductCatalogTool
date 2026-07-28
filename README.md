@@ -243,9 +243,29 @@ This endpoint is identical to the pre-v4 primary endpoint — useful for:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `USE_ENHANCED_MATCHER` | `true` | Enable full search pipeline (Aho-Corasick + BM25 + N-gram) |
+| `USE_SBERT_RERANKER` | `false` | Enable Sentence-BERT + Cross-Encoder semantic re-ranking stage |
+| `SBERT_MODEL` | `all-MiniLM-L6-v2` | Bi-encoder model name (HuggingFace Hub or local path) |
+| `CROSS_ENCODER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder model name |
 | `PORT` | `8080` | Port the server listens on |
 | `PYTHONUNBUFFERED` | `1` | Disable output buffering |
 | `PYTHONDONTWRITEBYTECODE` | `1` | Skip `.pyc` generation |
+
+### Semantic Re-Ranking (v6)
+
+When `USE_SBERT_RERANKER=true` the pipeline gains a semantic stage **after** the
+existing lexical matching:
+
+1. All matched-product aliases are encoded by the **Sentence-BERT bi-encoder**
+   (`all-MiniLM-L6-v2` by default, ~90 MB). Cosine similarity selects the
+   top-20 semantically closest aliases.
+2. Each `(query, alias)` pair in that short-list is scored by the
+   **Cross-Encoder** (`cross-encoder/ms-marco-MiniLM-L-6-v2`), which reads both
+   strings jointly for high-accuracy relevance scoring.
+3. A **blended score** (70 % confidence + 30 % cross-encoder, or 85/15 for
+   exact-match results) re-orders the final result list.
+
+The existing Aho-Corasick → BM25 → RapidFuzz → Confidence pipeline is
+**completely unchanged** — the SBERT stage is a pure post-processor.
 
 ---
 

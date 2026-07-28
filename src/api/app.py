@@ -17,6 +17,7 @@ from fastapi.openapi.utils import get_openapi
 
 from src.core.matcher import ProductMatcher
 from src.core.tls_checker import TLSChecker
+from src.core.sbert_reranker import SBERTReranker
 
 from .routes import search_router, products_router, health_router, search_v0_router
 from .routes import search, products, health, search_v0
@@ -39,20 +40,23 @@ app = FastAPI(
     **Authentication:** All endpoints (except `/health`) require a Bearer token.
     Click **Authorize** and enter your token to use the interactive docs.
 
-    **Search Pipeline (v5):**
+    **Search Pipeline (v6):**
     1. **Normalization** — lowercase, punctuation → space, delimiter joining, noise-word removal
     2. **BM25 Search** — weighted inverted-index retrieval of Top-20 candidates
     3. **N-gram Augmentation** — typo-tolerant candidate expansion when BM25 returns < 20 hits
     4. **RapidFuzz Re-score** — `token_sort_ratio` re-ranks the short candidate list
     5. **Confidence Calculation** — base score ± penalties ± boosts, floored at 0.00
-    6. **TLS Routing** — top result checked against TLS SLC-code mappings
+    6. **Sentence-BERT + Cross-Encoder Re-ranking** *(optional)* — semantic re-ordering of
+       the top-N results using dense bi-encoder similarity followed by cross-encoder pair
+       scoring.  Enable with `USE_SBERT_RERANKER=true`.
+    7. **TLS Routing** — top result checked against TLS SLC-code mappings
 
     **Coverage:** typos, aliases, partial names, extra words, case-insensitive.
-    **Pros:** no external LLM, deterministic, explainable, low-latency, scales to 10 K+ aliases.
+    **Pros:** deterministic lexical core + optional neural semantic layer, low-latency.
 
     **Fallback endpoint:** `/v0/products/search` — identical pipeline, TLS check bypassed.
     """,
-    version="5.0.0",
+    version="6.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -128,6 +132,27 @@ def startup_event():
 
     use_enhanced = os.getenv("USE_ENHANCED_MATCHER", "true").lower() == "true"
 
+    # ── Optional: Sentence-BERT + Cross-Encoder semantic re-ranker ────────
+    # Activate by setting  USE_SBERT_RERANKER=true  in the environment.
+    # Models are downloaded on first run (~90 MB total); subsequent starts
+    # use the local HuggingFace cache.
+    use_sbert = os.getenv("USE_SBERT_RERANKER", "false").lower() == "true"
+    sbert_reranker = None
+    if use_sbert:
+        bi_model = os.getenv("SBERT_MODEL", "all-MiniLM-L6-v2")
+        ce_model = os.getenv(
+            "CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        )
+        sbert_reranker = SBERTReranker(
+            bi_encoder_model=bi_model,
+            cross_encoder_model=ce_model,
+        )
+        if sbert_reranker.loaded:
+            print(f"✓ SBERTReranker loaded (bi={bi_model}, ce={ce_model})")
+        else:
+            print("⚠ SBERTReranker failed to load — semantic re-ranking disabled.")
+            sbert_reranker = None
+
     try:
         match_dictionary = _load_match_dictionary()
     except Exception as e:
@@ -138,7 +163,8 @@ def startup_event():
     matcher = ProductMatcher(
         match_dictionary=match_dictionary,
         delimiter_dict=delimiter_dict,
-        use_enhanced=use_enhanced
+        use_enhanced=use_enhanced,
+        sbert_reranker=sbert_reranker,
     )
 
     tls_checker = TLSChecker("data/tls_assistant_slc_code_mappings.json")

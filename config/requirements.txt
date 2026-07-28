@@ -8,6 +8,10 @@ rank-bm25>=0.2.2
 python-dotenv>=1.0.0
 ibmcloudant>=0.0.42
 
+# Semantic Re-Ranking (Sentence-BERT + Cross-Encoder)
+# Set USE_SBERT_RERANKER=true to activate; models are downloaded on first run.
+sentence-transformers>=2.6.0
+
 # LLM Reranking (optional — install whichever backend you use)
 # watsonx.ai backend
 ibm-watsonx-ai>=1.0.0

@@ -7,4 +7,8 @@ pyahocorasick>=2.0.0
 rank-bm25>=0.2.2
 requests>=2.31.0
 
+# Semantic Re-Ranking (Sentence-BERT + Cross-Encoder)
+# Set USE_SBERT_RERANKER=true to activate; models are downloaded on first run.
+sentence-transformers>=2.6.0
+
 # Made with Bob
