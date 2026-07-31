@@ -36,10 +36,14 @@ class ConfidenceScorer:
         'linux', 'windows', 'unix', 'aix'
     }
     
-    # Generic terms that reduce confidence
+    # Generic terms that reduce confidence.
+    # NOTE: 'application' is intentionally EXCLUDED — it is a meaningful
+    # product discriminator for IBM names such as "WebSphere Application Server",
+    # "Maximo Application Suite", and "Cloud Pak for Applications".  Including it
+    # would incorrectly penalise highly-specific product queries.
     GENERIC_TERMS = {
         'software', 'product', 'solution', 'system', 'tool',
-        'application', 'platform', 'service', 'program',
+        'platform', 'service', 'program',
         'suite', 'package', 'bundle', 'offering'
     }
     
@@ -95,6 +99,8 @@ class ConfidenceScorer:
             product_count=product_count,
             candidate_count=candidate_count,
             used_fallback=used_fallback,
+            match_type=match_type,
+            match_score=match_score,
         )
 
         # Step 3: Apply contextual boosts
@@ -122,19 +128,31 @@ class ConfidenceScorer:
         Determine base score from match strength.
 
         Spec:
-          Exact dictionary key match, single product  → 0.90
-          Exact match, multiple products              → 0.75
-          Substring match (long key)                  → 0.70
-          Token overlap only                          → 0.50
+          Exact dictionary key match, single product              → 0.90
+          Exact match, multiple products but long specific alias  → 0.90
+          Exact match, multiple products with short alias (≤9)    → 0.75
+          Fuzzy match, long alias (≥ 10 chars)                   → 0.70
+          Fuzzy match, short alias (< 10 chars)                  → 0.50
+
+        Rationale for promoting long-alias multi-product exact matches:
+          Aliases with ≥10 characters are specific product phrases
+          (e.g. "instana observability", "guardium data protection").
+          When such an alias exactly matches the user query, the match is
+          unambiguous at the alias level even if the same alias resolves to
+          multiple SLC codes.  The candidate_count penalty still fires when
+          there are multiple results in the set.
         """
-        # ── Exact match (alias key == query, from exact_match or fuzzy_match section) ──
+        # ── Exact match ──────────────────────────────────────────────────
         if match_type in ['exact_full', 'exact_phrase', 'exact_phrase_ac']:
             if product_count == 1:
-                return 0.90   # single product
+                return 0.90   # single product — unambiguous
             else:
-                return 0.75   # multiple products share this alias
+                # Long aliases are specific even when shared across products
+                if len(matched_alias) >= 10:
+                    return 0.90
+                return 0.75   # short alias shared by multiple products
 
-        # ── Fuzzy match ──
+        # ── Fuzzy match ──────────────────────────────────────────────────
         elif match_type in ['fuzzy', 'fuzzy_bm25', 'fuzzy_ngram']:
             # "Substring match (long key)": alias is long (≥ 10 chars) — the alias
             # is a meaningful phrase, not just a token overlap
@@ -153,26 +171,48 @@ class ConfidenceScorer:
         matched_alias: str,
         product_count: int,
         candidate_count: int,
-        used_fallback: bool
+        used_fallback: bool,
+        match_type: str = "",
+        match_score: float = 0.0,
     ) -> float:
         """
         Calculate disambiguation penalties.
 
         Spec:
-          -0.10  if multiple candidate products remain
-                 (candidate_count = total distinct products in the result set)
-          -0.10  if match relied on generic terms
+          -0.10  if multiple candidate products remain AND the top match is
+                 not a high-confidence exact match (score < 1.0 or short alias)
+                 Rationale: when the query exactly names a specific product
+                 (score=1.0, alias≥10 chars), the presence of other results
+                 is expected and does not signal ambiguity.
+          -0.10  if match relied on generic terms — applied only when the
+                 generic terms make up >50% of ALL query tokens (not just
+                 the query-alias token overlap).
           -0.15  if fallback token logic was required
-                 (used_fallback = True when BM25/token index returned no candidates
-                  and the matcher fell back to scanning all aliases)
+                 (used_fallback = True when BM25/token index returned no
+                  candidates and the matcher fell back to scanning all aliases)
         """
         total_penalty = 0.0
 
-        # Penalty 1: multiple candidate products remain in the result set
-        if candidate_count > 1:
+        # Penalty 1: multiple candidate products remain in the result set.
+        # Suppressed when the match is a strong, specific exact match:
+        #   - match type is exact (exact_full / exact_phrase / exact_phrase_ac)
+        #   - score is 1.0 (perfect lexical match)
+        #   - alias is long (≥10 chars), meaning it is specific enough not
+        #     to be considered ambiguous.
+        is_exact_match = match_type.startswith("exact") or match_type == "exact_full"
+        is_strong_exact = (
+            is_exact_match
+            and match_score >= 1.0
+            and len(matched_alias) >= 10
+        )
+        if candidate_count > 1 and not is_strong_exact:
             total_penalty += 0.10
 
-        # Penalty 2: match relied on generic terms
+        # Penalty 2: match relied on generic terms.
+        # Now evaluated against the full query token set rather than only the
+        # query-alias overlap, so that product names with one generic suffix
+        # token (e.g. "suite" in "Maximo Application Suite") are not penalised
+        # unless the majority of the entire query is generic noise.
         if self._contains_generic_terms(query, matched_alias):
             total_penalty += 0.10
 
@@ -215,27 +255,34 @@ class ConfidenceScorer:
     def _contains_generic_terms(self, query: str, matched_alias: str) -> bool:
         """
         Check if match relies heavily on generic terms.
-        
-        Returns True if >50% of matched tokens are generic.
+
+        Returns True only when >50% of the FULL query token set is generic.
+
+        Rationale: the original check measured the fraction of generic terms in
+        the query-alias token overlap, which fires incorrectly for specific
+        product names that contain exactly one generic suffix (e.g. "suite" in
+        "Maximo Application Suite" — 2 of 3 overlap tokens are non-generic, yet
+        the fraction check counted "suite" as >50% of a 2-token overlap after
+        stop-words were excluded).
+
+        Using the full query token count as the denominator means a product
+        name must consist *mostly* of generic words to trigger the penalty, which
+        is the intended behaviour for queries like "software solution tool".
         """
         query_lower = query.lower()
         alias_lower = matched_alias.lower()
-        
-        # Get tokens from both query and alias
-        query_tokens = set(re.findall(r'\b\w+\b', query_lower))
-        alias_tokens = set(re.findall(r'\b\w+\b', alias_lower))
-        
-        # Find overlapping tokens
-        overlap = query_tokens & alias_tokens
-        
-        if not overlap:
+
+        # All tokens in the query
+        query_tokens = list(re.findall(r'\b\w+\b', query_lower))
+
+        if not query_tokens:
             return False
-        
-        # Count generic terms in overlap
-        generic_count = sum(1 for token in overlap if token in self.GENERIC_TERMS)
-        
-        # If more than 50% of overlap is generic, penalize
-        return generic_count > len(overlap) * 0.5
+
+        # Count generic terms in the full query
+        generic_count = sum(1 for token in query_tokens if token in self.GENERIC_TERMS)
+
+        # Penalise only when the majority of the FULL query is generic noise
+        return generic_count > len(query_tokens) * 0.5
     
     def _has_platform_keywords(self, query: str, matched_alias: str) -> bool:
         """
@@ -321,6 +368,8 @@ class ConfidenceScorer:
             product_count=product_count,
             candidate_count=candidate_count,
             used_fallback=used_fallback,
+            match_type=match_type,
+            match_score=match_score,
         )
         boosts = self._calculate_boosts(
             query=query,

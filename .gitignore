@@ -17,3 +17,9 @@ data/
 
 # Local virtual environment — never commit
 env/
+
+# Bob agent workspace -- never commit
+.bob/
+
+# Playwright MCP session state -- never commit
+.playwright-mcp/

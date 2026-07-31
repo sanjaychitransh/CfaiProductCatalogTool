@@ -38,7 +38,7 @@ def search_products_v0(
         description="Search query (product code, name, or description)",
         min_length=1,
         max_length=1000,
-        example="IBM Cloud Pak for Data"
+        examples=["IBM Cloud Pak for Data"]
     ),
     limit: int = Query(
         10,

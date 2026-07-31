@@ -112,7 +112,7 @@ def _load_match_dictionary() -> dict:
     match_dictionary = doc.get("match_dictionary")
     if match_dictionary is None:
         raise KeyError("'match_dictionary' key not found in local JSON file")
-    print(f"✓ Match dictionary loaded from: {local_path}")
+    print(f"[OK] Match dictionary loaded from: {local_path}")
     return match_dictionary
 
 
@@ -148,16 +148,16 @@ def startup_event():
             cross_encoder_model=ce_model,
         )
         if sbert_reranker.loaded:
-            print(f"✓ SBERTReranker loaded (bi={bi_model}, ce={ce_model})")
+            print(f"[OK] SBERTReranker loaded (bi={bi_model}, ce={ce_model})")
         else:
-            print("⚠ SBERTReranker failed to load — semantic re-ranking disabled.")
+            print("[WARN] SBERTReranker failed to load -- semantic re-ranking disabled.")
             sbert_reranker = None
 
     try:
         match_dictionary = _load_match_dictionary()
     except Exception as e:
-        print(f"✗ Failed to load match dictionary: {e}")
-        print("  ⚠ Starting with empty matcher — search endpoints will return no results.")
+        print(f"[ERR] Failed to load match dictionary: {e}")
+        print("  [WARN] Starting with empty matcher -- search endpoints will return no results.")
         match_dictionary = {"exact_match": {}, "fuzzy_match": {}}
 
     matcher = ProductMatcher(
@@ -175,14 +175,16 @@ def startup_event():
     products.set_matcher(matcher)
     health.set_matcher(matcher)
 
-    print(f"✓ Matcher initialized")
+    print(f"[OK] Matcher initialized")
     print(f"  - Mode: {'Enhanced' if matcher.use_enhanced else 'Legacy'}")
     print(f"  - Exact aliases: {len(matcher.exact_index)}")
     print(f"  - Fuzzy aliases: {len(matcher.fuzzy_aliases)}")
 
     if matcher.use_enhanced:
-        print(f"  - Aho-Corasick: {'✓' if matcher.ac_automaton else '✗'}")
-        print(f"  - BM25: {'✓' if matcher.bm25_index else '✗'}")
+        ac_ok = "OK" if matcher.ac_automaton else "MISS"
+        bm_ok = "OK" if matcher.bm25_index else "MISS"
+        print(f"  - Aho-Corasick: [{ac_ok}]")
+        print(f"  - BM25: [{bm_ok}]")
         print(f"  - N-gram index: {len(matcher.ngram_index)} entries")
 
 

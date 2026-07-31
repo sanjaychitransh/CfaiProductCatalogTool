@@ -37,7 +37,7 @@ class TLSChecker:
         self._slc_to_product: dict[str, str] = {}
 
         if not os.path.exists(mappings_path):
-            print(f"⚠  TLS mappings file not found: {mappings_path} — TLS check disabled")
+            print(f"[WARN] TLS mappings file not found: {mappings_path} -- TLS check disabled")
             return
 
         with open(mappings_path, "r", encoding="utf-8") as fh:
@@ -52,7 +52,7 @@ class TLSChecker:
             self._slc_to_assistant[slc] = entry.get("assistant", "TLS Agent")
             self._slc_to_product[slc] = entry.get("product_name", "")
 
-        print(f"✓ TLS checker loaded — {len(self._slc_to_assistant)} SLC codes")
+        print(f"[OK] TLS checker loaded -- {len(self._slc_to_assistant)} SLC codes")
 
     # ------------------------------------------------------------------
     # Public API

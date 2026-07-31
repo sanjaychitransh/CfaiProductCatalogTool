@@ -666,6 +666,13 @@ class ProductMatcher:
         # Strip noise words from the user query; alias keys are never noise-stripped
         query_norm = self.clean_string(query, remove_noise=True)
 
+        # Also compute the non-noise-stripped normalized query so we can promote
+        # fuzzy-section keys that exactly match the full product name phrase.
+        # Example: "Cloud Pak for Data" normalizes to "cloud_pak for data"
+        # (non-noise-stripped) which IS a key in fuzzy_alias_index even though
+        # the noise-stripped form "cloud_pak data" is not.
+        query_norm_full = self.clean_string(query, remove_noise=False)
+
         # --- Step 1: exact_match section hits ---
         matches = self.exact_match(query_norm)
         exact_aliases_seen = {alias for alias, _, _, _ in matches}
@@ -685,7 +692,13 @@ class ProductMatcher:
         #   alias  "websphere application server for z/os"
         #     → noise-stripped: "web_sphere application server z_os"
         #   They match via fuzzy_alias_noisestripped_index → promoted to exact_full.
-        candidates_for_exact = {query_norm} | set(self.tokenize(query_norm))
+        #
+        #   Step 2c (NEW): also check the non-noise-stripped full form.
+        #   Handles product names that contain stopwords in the middle, e.g.
+        #   "cloud pak for data" — noise stripping removes "for" leaving
+        #   "cloud_pak data" which does NOT match the fuzzy_alias_index key
+        #   "cloud_pak for data", but the full form does.
+        candidates_for_exact = {query_norm, query_norm_full} | set(self.tokenize(query_norm))
         for term in candidates_for_exact:
             if term in self.fuzzy_alias_index and term not in exact_aliases_seen:
                 idx = self.fuzzy_alias_index[term]
