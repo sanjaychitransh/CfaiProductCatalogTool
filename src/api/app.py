@@ -5,56 +5,111 @@ High-performance FastAPI service for product identification using
 advanced multi-stage search pipeline.
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
 
-# Import the enhanced ProductMatcher
-from src.core.matcher import ProductMatcher
+from dotenv import load_dotenv
+load_dotenv()  # loads .env from the working directory
 
-# Import TLS checker
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
+
+from src.core.matcher import ProductMatcher
 from src.core.tls_checker import TLSChecker
 
-# Import route modules
 from .routes import search_router, products_router, health_router, search_v0_router
 from .routes import search, products, health, search_v0
 
-# Create FastAPI application
+# Allowed CORS origins — override via CORS_ALLOWED_ORIGINS (comma-separated).
+_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "https://cfaiproducts.2b06dgt5gcrj.us-south.codeengine.appdomain.cloud",
+    ).split(",")
+    if o.strip()
+]
+
 app = FastAPI(
     title="Product Catalog API",
     description="""
     High-performance API for exact + fuzzy product identification.
 
-    **Enhanced Search Stack:**
-    - Aho-Corasick: Fast exact phrase matching
-    - BM25: Weighted candidate retrieval
-    - RapidFuzz: Accurate reranking
-    - N-gram: Typo tolerance
-    - SLC_CODE grouping: Deduplicated results
+    **Authentication:** All endpoints (except `/health`) require a Bearer token.
+    Click **Authorize** and enter your token to use the interactive docs.
 
-    **TLS Routing:**
-    When the top search result belongs to a TLS-owned product the
-    `/products/search` endpoint returns a redirect notice instead of
-    product names.  The original behaviour (no TLS check) remains
-    available at `/v0/products/search` for fallback / comparison.
+    **Search Pipeline (v5):**
+    1. **Normalization** — lowercase, punctuation → space, delimiter joining, noise-word removal
+    2. **BM25 Search** — weighted inverted-index retrieval of Top-20 candidates
+    3. **N-gram Augmentation** — typo-tolerant candidate expansion when BM25 returns < 20 hits
+    4. **RapidFuzz Re-score** — `token_sort_ratio` re-ranks the short candidate list
+    5. **Confidence Calculation** — base score ± penalties ± boosts, floored at 0.00
+    6. **TLS Routing** — top result checked against TLS SLC-code mappings
+
+    **Coverage:** typos, aliases, partial names, extra words, case-insensitive.
+    **Pros:** no external LLM, deterministic, explainable, low-latency, scales to 10 K+ aliases.
+
+    **Fallback endpoint:** `/v0/products/search` — identical pipeline, TLS check bypassed.
     """,
-    version="4.0.0",
+    version="5.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
-# Add CORS middleware for web applications
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-# Global matcher instance
+
+def _custom_openapi():
+    """Attach BearerAuth security scheme so Swagger UI shows the Authorize button."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    schema.setdefault("components", {})["securitySchemes"] = {
+        "BearerAuth": {"type": "http", "scheme": "bearer"}
+    }
+    for path, path_item in schema.get("paths", {}).items():
+        if path == "/health":
+            continue
+        for operation in path_item.values():
+            if isinstance(operation, dict):
+                operation["security"] = [{"BearerAuth": []}]
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = _custom_openapi
+
 matcher = None
+
+_LOCAL_DICT_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),  # src/api/
+    "..", "..",                                   # → project root
+    "data", "product_match_dictionary.json",
+)
+
+
+def _load_match_dictionary() -> dict:
+    """Load the product-match dictionary from the local JSON file."""
+    local_path = os.path.normpath(_LOCAL_DICT_PATH)
+    with open(local_path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    match_dictionary = doc.get("match_dictionary")
+    if match_dictionary is None:
+        raise KeyError("'match_dictionary' key not found in local JSON file")
+    print(f"✓ Match dictionary loaded from: {local_path}")
+    return match_dictionary
 
 
 @app.on_event("startup")
@@ -62,63 +117,53 @@ def startup_event():
     """Initialize the matcher and TLS checker on application startup."""
     global matcher
 
+    delimiter_dict = {
+        "tcp ip": "_",
+        "cloud pak": "_",
+        "check sorter": "_",
+        "web sphere": "_",
+        "data stage": "_",
+        "z os": "_",
+    }
+
+    use_enhanced = os.getenv("USE_ENHANCED_MATCHER", "true").lower() == "true"
+
     try:
-        with open("data/product_match_dictionary.json", "r", encoding="utf-8") as file:
-            raw_data = json.load(file)
-
-        match_dictionary = raw_data.get("match_dictionary", {})
-
-        # Delimiter normalization dictionary
-        delimiter_dict = {
-            "tcp ip": "_",
-            "cloud pak": "_",
-            "check sorter": "_",
-            "web sphere": "_",
-            "data stage": "_"
-        }
-
-        # Initialize matcher with enhanced features
-        use_enhanced = os.getenv("USE_ENHANCED_MATCHER", "true").lower() == "true"
-
-        matcher = ProductMatcher(
-            match_dictionary=match_dictionary,
-            delimiter_dict=delimiter_dict,
-            use_enhanced=use_enhanced
-        )
-
-        # Initialize TLS checker
-        tls_checker = TLSChecker("data/tls_assistant_slc_code_mappings.json")
-
-        # Set matcher (and TLS checker) in route modules
-        search.set_matcher(matcher)
-        search.set_tls_checker(tls_checker)
-        search_v0.set_matcher(matcher)
-        products.set_matcher(matcher)
-        health.set_matcher(matcher)
-
-        print(f"✓ Matcher initialized")
-        print(f"  - Mode: {'Enhanced' if matcher.use_enhanced else 'Legacy'}")
-        print(f"  - Exact aliases: {len(matcher.exact_index)}")
-        print(f"  - Fuzzy aliases: {len(matcher.fuzzy_aliases)}")
-
-        if matcher.use_enhanced:
-            print(f"  - Aho-Corasick: {'✓' if matcher.ac_automaton else '✗'}")
-            print(f"  - BM25: {'✓' if matcher.bm25_index else '✗'}")
-            print(f"  - N-gram index: {len(matcher.ngram_index)} entries")
-
-    except FileNotFoundError:
-        print("✗ Error: product_match_dictionary.json not found")
-        raise
+        match_dictionary = _load_match_dictionary()
     except Exception as e:
-        print(f"✗ Error initializing matcher: {e}")
-        raise
+        print(f"✗ Failed to load match dictionary: {e}")
+        print("  ⚠ Starting with empty matcher — search endpoints will return no results.")
+        match_dictionary = {"exact_match": {}, "fuzzy_match": {}}
+
+    matcher = ProductMatcher(
+        match_dictionary=match_dictionary,
+        delimiter_dict=delimiter_dict,
+        use_enhanced=use_enhanced
+    )
+
+    tls_checker = TLSChecker("data/tls_assistant_slc_code_mappings.json")
+
+    search.set_matcher(matcher)
+    search.set_tls_checker(tls_checker)
+    search_v0.set_matcher(matcher)
+    products.set_matcher(matcher)
+    health.set_matcher(matcher)
+
+    print(f"✓ Matcher initialized")
+    print(f"  - Mode: {'Enhanced' if matcher.use_enhanced else 'Legacy'}")
+    print(f"  - Exact aliases: {len(matcher.exact_index)}")
+    print(f"  - Fuzzy aliases: {len(matcher.fuzzy_aliases)}")
+
+    if matcher.use_enhanced:
+        print(f"  - Aho-Corasick: {'✓' if matcher.ac_automaton else '✗'}")
+        print(f"  - BM25: {'✓' if matcher.bm25_index else '✗'}")
+        print(f"  - N-gram index: {len(matcher.ngram_index)} entries")
 
 
-# Include routers
 app.include_router(health_router)
-app.include_router(search_router)           # primary  — with TLS intercept
+app.include_router(search_router)
 app.include_router(products_router)
-app.include_router(search_v0_router)        # secondary — original behaviour (no TLS check)
+app.include_router(search_v0_router)
 
 
 if __name__ == "__main__":

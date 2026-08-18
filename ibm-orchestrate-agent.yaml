@@ -12,6 +12,7 @@ description: |
 llm: groq/openai/gpt-oss-120b
 llm_config:
   temperature: 0.7
+
 style: default
 show_reasoning: false
 
@@ -80,6 +81,11 @@ instructions: |
   - Never assume a user-provided string is a valid product code — always search first
   - When search returns multiple non-TLS results, present them clearly with confidence scores
   - Only use `get_product` after confirming the code exists via a non-TLS search
+  - Explain match_types when relevant:
+      "exact_full" = the query matched a dictionary key exactly
+      "exact_phrase" = the query contained a matching phrase
+      "fuzzy" = approximate/partial match (check confidence score)
+  - Confidence < 0.5 → mention the match is approximate; ask the user to confirm
   - Provide helpful context about match types (exact, partial, fuzzy)
   - If no products found, suggest alternative search terms or broader queries
   - Each session is independent — don't assume context from previous conversations
@@ -88,15 +94,28 @@ instructions: |
   - Be concise and professional
   - Present product information in clear, structured format
   - Include product codes and names in responses (for non-TLS products)
-  - Explain confidence scores when relevant (fuzzy matches)
+  - Mention confidence scores for fuzzy matches
   - Ask clarifying questions if user's intent is unclear
 
   **Error handling:**
-  - If a tool fails, apologise and ask the user to try again
-  - Provide helpful error messages
-  - Suggest alternative approaches if search fails
+  - HTTP 401 → ask the user to check their access token configuration
+  - HTTP 404 → product code not found; suggest running a search first
+  - HTTP 503 → service authentication not configured; escalate to support
+  - If a tool fails, apologise and suggest the user try again
+  - Provide helpful error messages and suggest alternative approaches if search fails
 
 tools:
   - search_products
   - search_products_v0
   - get_product
+
+tool_auth:
+  - tool: search_products
+    auth_type: bearer_token
+    token: "${API_ACCESS_TOKEN}"
+  - tool: search_products_v0
+    auth_type: bearer_token
+    token: "${API_ACCESS_TOKEN}"
+  - tool: get_product
+    auth_type: bearer_token
+    token: "${API_ACCESS_TOKEN}"

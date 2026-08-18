@@ -2,9 +2,10 @@
 Product endpoints for listing and retrieving product information.
 """
 
-from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
-from ..models.response import ProductListResponse, ProductInfo
+from ..auth import require_token
+from ..models.response import ProductInfo, ProductListResponse
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -18,7 +19,7 @@ def set_matcher(matcher_instance):
     matcher = matcher_instance
 
 
-@router.get("", response_model=ProductListResponse)
+@router.get("", response_model=ProductListResponse, dependencies=[Depends(require_token)])
 def get_products(
     limit: int = Query(
         100, 
@@ -72,7 +73,7 @@ def get_products(
     }
 
 
-@router.get("/{product_code}", response_model=ProductInfo)
+@router.get("/{product_code}", response_model=ProductInfo, dependencies=[Depends(require_token)])
 def get_product_by_code(
     product_code: str = Path(..., description="Product code (SLC_CODE)")
 ):

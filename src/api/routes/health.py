@@ -2,8 +2,9 @@
 Health and statistics endpoints.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from ..auth import require_token
 from ..models.response import HealthResponse
 
 router = APIRouter(tags=["System"])
@@ -23,9 +24,9 @@ def root():
     """Root endpoint redirect to docs."""
     return {
         "message": "Product Catalog API",
-        "version": "3.0.0",
+        "version": "5.0.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }
 
 
@@ -46,7 +47,7 @@ def health():
     }
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[Depends(require_token)])
 def get_statistics():
     """
     Get detailed statistics about the matcher.
