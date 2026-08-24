@@ -1,6 +1,14 @@
 {
   "_id": "ICR_Chat_Product_Match_Dictionary",
   "_rev": "281-7ac2579da1b7b5cf15a568b474e546f3",
+  "delimiter_dict": {
+    "tcp ip": "_",
+    "cloud pak": "_",
+    "check sorter": "_",
+    "web sphere": "_",
+    "data stage": "_",
+    "z os": "_"
+  },
   "match_dictionary": {
     "fuzzy_match": {
       "21cs streams with": [

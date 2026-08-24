@@ -104,31 +104,64 @@ _LOCAL_DICT_PATH = os.path.join(
 )
 
 
-def _load_match_dictionary() -> dict:
-    """Load the product-match dictionary from the local JSON file."""
+def _load_match_dictionary() -> tuple:
+    """
+    Load the product-match dictionary and delimiter dict from the local JSON file.
+
+    Returns
+    -------
+    (match_dictionary, delimiter_dict)
+        match_dictionary : dict with ``exact_match`` and ``fuzzy_match`` sections
+        delimiter_dict   : dict of compound-term → delimiter mappings; falls back
+                           to an empty dict when the key is absent so the app
+                           still starts cleanly against an older file format.
+    """
     local_path = os.path.normpath(_LOCAL_DICT_PATH)
     with open(local_path, encoding="utf-8") as fh:
         doc = json.load(fh)
+
     match_dictionary = doc.get("match_dictionary")
     if match_dictionary is None:
         raise KeyError("'match_dictionary' key not found in local JSON file")
+
+    # Validate every entry has the required fields so silent schema drift is
+    # caught at startup rather than at query time.
+    _validate_match_dictionary(match_dictionary, local_path)
+
+    delimiter_dict = doc.get("delimiter_dict", {})
     print(f"[OK] Match dictionary loaded from: {local_path}")
-    return match_dictionary
+    print(f"  - Delimiter terms: {len(delimiter_dict)}")
+    return match_dictionary, delimiter_dict
+
+
+def _validate_match_dictionary(match_dictionary: dict, source_path: str) -> None:
+    """
+    Assert every entry in both sections has a non-empty SLC_CODE and PRODUCT_NAME.
+
+    Raises ValueError listing all invalid entries so operators can fix the
+    dictionary file without hunting through thousands of keys.
+    """
+    errors = []
+    for section in ("exact_match", "fuzzy_match"):
+        for alias, products in match_dictionary.get(section, {}).items():
+            for i, product in enumerate(products):
+                if not product.get("SLC_CODE", "").strip():
+                    errors.append(f"  [{section}]['{alias}'][{i}] missing SLC_CODE")
+                if not product.get("PRODUCT_NAME", "").strip():
+                    errors.append(f"  [{section}]['{alias}'][{i}] missing PRODUCT_NAME")
+
+    if errors:
+        error_list = "\n".join(errors[:20])  # cap output for very large files
+        suffix = f"\n  ... ({len(errors) - 20} more)" if len(errors) > 20 else ""
+        raise ValueError(
+            f"Dictionary schema errors in {source_path}:\n{error_list}{suffix}"
+        )
 
 
 @app.on_event("startup")
 def startup_event():
     """Initialize the matcher and TLS checker on application startup."""
     global matcher
-
-    delimiter_dict = {
-        "tcp ip": "_",
-        "cloud pak": "_",
-        "check sorter": "_",
-        "web sphere": "_",
-        "data stage": "_",
-        "z os": "_",
-    }
 
     use_enhanced = os.getenv("USE_ENHANCED_MATCHER", "true").lower() == "true"
 
@@ -154,11 +187,12 @@ def startup_event():
             sbert_reranker = None
 
     try:
-        match_dictionary = _load_match_dictionary()
+        match_dictionary, delimiter_dict = _load_match_dictionary()
     except Exception as e:
         print(f"[ERR] Failed to load match dictionary: {e}")
         print("  [WARN] Starting with empty matcher -- search endpoints will return no results.")
         match_dictionary = {"exact_match": {}, "fuzzy_match": {}}
+        delimiter_dict = {}
 
     matcher = ProductMatcher(
         match_dictionary=match_dictionary,

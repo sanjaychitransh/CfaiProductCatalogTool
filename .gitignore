@@ -23,3 +23,6 @@ env/
 
 # Playwright MCP session state -- never commit
 .playwright-mcp/
+
+# Tests folder - never commit
+tests/
