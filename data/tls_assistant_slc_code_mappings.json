@@ -1,0 +1,1250 @@
+[
+  {
+    "owner": "TLS",
+    "slc_code": "SCPA0",
+    "product_name": "AIX",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPL3",
+    "product_name": "AIX on PowerVS",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPE7",
+    "product_name": "PowerVM / VIOS",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A99",
+    "product_name": "DS8870",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA1",
+    "product_name": "DS8900F",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA0",
+    "product_name": "DS8880",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A10",
+    "product_name": "DS8000 Legacy Systems",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A41",
+    "product_name": "System Storage Productivity Center",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACC",
+    "product_name": "DS8A00",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPB6",
+    "product_name": "Hardware Management Console Application",
+    "assistant": "HMC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPF9",
+    "product_name": "IBM i",
+    "assistant": "IBM i (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPMH",
+    "product_name": "IBM i on PowerVS",
+    "assistant": "IBM i (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPL5",
+    "product_name": "WebSphere Application Server for IBM i",
+    "assistant": "IBM i (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPWQ",
+    "product_name": "Db2 Web Query for i",
+    "assistant": "IBM i (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B10",
+    "product_name": "AS/400 Series Server",
+    "assistant": "IBM i (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMM3A06",
+    "product_name": "Security Family",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMM3A03",
+    "product_name": "Dynamics 365",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMM3A04",
+    "product_name": "M365 Platform",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMM3A05",
+    "product_name": "Power Platform Family",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SFSB9",
+    "product_name": "Other Applications",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SFSN9",
+    "product_name": "Windows",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SFSN8",
+    "product_name": "Azure",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A04",
+    "product_name": "ACE",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A10",
+    "product_name": "Application Policy Infrastructure Controller",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A02",
+    "product_name": "Wireless Access Point",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A45",
+    "product_name": "Nexus Series",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A25",
+    "product_name": "Firepower",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A32",
+    "product_name": "IP Phone",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A31",
+    "product_name": "Identity Services Engine",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A01",
+    "product_name": "Router Series",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A8V",
+    "product_name": "DNA Traffic Telemetry Appliance",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A55",
+    "product_name": "UCS Series",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A8C",
+    "product_name": "Hyperflex HX Series",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A12",
+    "product_name": "ASA Series",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMC0A60",
+    "product_name": "Switch",
+    "assistant": "MVS CISCO Network (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMD0A18",
+    "product_name": "PowerEdge Server",
+    "assistant": "MVS Dell (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0AAP",
+    "product_name": "Apollo 6000 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0AAC",
+    "product_name": "Moonshot 1500 Chassis",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A02",
+    "product_name": "ProLiant",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0AB1",
+    "product_name": "Apollo KL20 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0AAF",
+    "product_name": "Apollo PC40 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0AA9",
+    "product_name": "Apollo SX40 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A5U",
+    "product_name": "Apollo 4500 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A5T",
+    "product_name": "Apollo 2600 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A5R",
+    "product_name": "Apollo 2000 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A4Z",
+    "product_name": "Apollo 6500 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A33",
+    "product_name": "Apollo 4200 Series Servers",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMH0A3Q",
+    "product_name": "Virtual Connect Module for BladeSystem",
+    "assistant": "HPC (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPF2",
+    "product_name": "",
+    "assistant": "MVS Linux (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK1",
+    "product_name": "Red Hat Enterprise Linux Server",
+    "assistant": "MVS Linux (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SFSO1",
+    "product_name": "Red Hat OpenShift Container Platform",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK6",
+    "product_name": "Red Hat OpenStack Platform",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK0",
+    "product_name": "",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPF5",
+    "product_name": "",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK3",
+    "product_name": "Red Hat Enterprise Virtualization for Servers",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK4",
+    "product_name": "",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK7",
+    "product_name": "Red Hat Satellite",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG3",
+    "product_name": "SAP HANA",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG7",
+    "product_name": "SUSE Linux Enterprise Server for SAP Applications",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG4",
+    "product_name": "",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG5",
+    "product_name": "",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG6",
+    "product_name": "SUSE Linux Enterprise Server",
+    "assistant": "MVS Linux (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG8",
+    "product_name": "SUSE Linux Enterprise Virtual Machine Driver Pack",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPG9",
+    "product_name": "SUSE Manager Server",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPH0",
+    "product_name": "",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPH1",
+    "product_name": "Ubuntu Linux Server",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPH2",
+    "product_name": "Ubuntu OpenStack Cloud",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPK2",
+    "product_name": "Red Hat Enterprise Linux for SAP Solutions",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SMN1A04",
+    "product_name": "Flash Storage System",
+    "assistant": "TLS (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0A53",
+    "product_name": "Power System AC922 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B6A",
+    "product_name": "Power System E1050 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B65",
+    "product_name": "Power System E1080 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4C",
+    "product_name": "Power System E850 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0A40",
+    "product_name": "Power System E850C Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4B",
+    "product_name": "Power System E870 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4A",
+    "product_name": "Power System E870C Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B49",
+    "product_name": "Power System E880 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B48",
+    "product_name": "Power System E880C Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4M",
+    "product_name": "Power System E950 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4K",
+    "product_name": "Power System E980 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4J",
+    "product_name": "Power System H922 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4H",
+    "product_name": "Power System H924 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0A16",
+    "product_name": "Power System Hardware Management Console Physical Appliance",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B21",
+    "product_name": "Power System IC922 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B67",
+    "product_name": "Power System L1022 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B69",
+    "product_name": "Power System L1024 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4G",
+    "product_name": "Power System L922 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0A09",
+    "product_name": "Power System LC921 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4F",
+    "product_name": "Power System LC922 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B6G",
+    "product_name": "Power System S1014 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B66",
+    "product_name": "Power System S1022 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B6F",
+    "product_name": "Power System S1022s Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B68",
+    "product_name": "Power System S1024 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B47",
+    "product_name": "Power System S812 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B11",
+    "product_name": "Power System S812L Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B46",
+    "product_name": "Power System S812LC Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B45",
+    "product_name": "Power System S814 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B44",
+    "product_name": "Power System S821LC Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B43",
+    "product_name": "Power System S822 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B2U",
+    "product_name": "Power System S822L Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B42",
+    "product_name": "Power System S822LC Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B41",
+    "product_name": "Power System S824 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0A54",
+    "product_name": "Power System S824L Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4E",
+    "product_name": "Power System S914 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4D",
+    "product_name": "Power System S922 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4N",
+    "product_name": "Power System S924 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B6K",
+    "product_name": "Power System S1012 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B5O",
+    "product_name": "Power System E1150 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B4O",
+    "product_name": "Power System E1180 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B5S",
+    "product_name": "Power System S1122 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B5I",
+    "product_name": "Power System S1124 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B6J",
+    "product_name": "Power System L1122 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B6I",
+    "product_name": "Power System L1124 Server",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPB5",
+    "product_name": "VM Recovery Manager",
+    "assistant": "PowerHA (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPE3",
+    "product_name": "PowerHA SystemMirror",
+    "assistant": "PowerHA (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACH",
+    "product_name": "SANnav",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIP0B09",
+    "product_name": "SAN Cisco MDS Collection",
+    "assistant": "Power Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A53",
+    "product_name": "SAN c-type Collection",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A05",
+    "product_name": "SAN b-type Collection",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AB3",
+    "product_name": "Network Advisor",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSA5",
+    "product_name": "Spectrum Control",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA9",
+    "product_name": "FlashSystem 5000",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AB0",
+    "product_name": "FlashSystem 5100",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AC8",
+    "product_name": "FlashSystem 5200",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AB1",
+    "product_name": "FlashSystem 7200",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACG",
+    "product_name": "FlashSystem 7300",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A52",
+    "product_name": "FlashSystem 9100",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AB2",
+    "product_name": "FlashSystem 9200",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACF",
+    "product_name": "FlashSystem 9500",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A35",
+    "product_name": "SAN Volume Controller",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A77",
+    "product_name": "Spectrum Virtualize for SAN Volume Controller",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AC2",
+    "product_name": "Spectrum Virtualize for Storwize V5000",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA3",
+    "product_name": "Storwize V3500",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA4",
+    "product_name": "Storwize V3700",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA5",
+    "product_name": "Storwize V5000",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA6",
+    "product_name": "Storwize V5000e",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA7",
+    "product_name": "Storwize V5100",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AA8",
+    "product_name": "Storwize V7000",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACW",
+    "product_name": "FlashSystem 5300",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A21",
+    "product_name": "FlashSystem C200",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSTX",
+    "product_name": "Storage Fusion",
+    "assistant": "Storage Fusion (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACB",
+    "product_name": "Storage Fusion HCI Physical Appliance",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSU4",
+    "product_name": "Fusion HCI for watsonx",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSS4",
+    "product_name": "Storage Insights",
+    "assistant": "Storage Insights (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSB9",
+    "product_name": "Spectrum Protect for ERP",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSTA",
+    "product_name": "",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSA6",
+    "product_name": "Storage Protect",
+    "assistant": "Storage Protect (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCST6",
+    "product_name": "",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSB8",
+    "product_name": "Storage Protect for Databases",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSC0",
+    "product_name": "Storage Protect for Mail",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSC1",
+    "product_name": "Storage Protect for Space Management",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSC2",
+    "product_name": "Storage Protect for Virtual Environments",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSC5",
+    "product_name": "Storage Protect Snapshot",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCST2",
+    "product_name": "",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCST4",
+    "product_name": "",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCST3",
+    "product_name": "",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCST5",
+    "product_name": "",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSB6",
+    "product_name": "Storage Scale",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCST1",
+    "product_name": "Storage Scale Erasure Code Edition",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCSB4",
+    "product_name": "Storage Scale System Software",
+    "assistant": "Storage Scale (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A11",
+    "product_name": "Elastic Storage System Hardware",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A60",
+    "product_name": "V7000 Unified",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SFS63",
+    "product_name": "Support Insights",
+    "assistant": "MVS Microsoft (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A78",
+    "product_name": "TS2900 Tape Autoloader",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A82",
+    "product_name": "TS4300 Tape Library",
+    "assistant": "Tape Storage (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A83",
+    "product_name": "TS4500 Tape Library",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A84",
+    "product_name": "TS1070 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A85",
+    "product_name": "TS1080 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A88",
+    "product_name": "TS1150 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A89",
+    "product_name": "TS1155 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A90",
+    "product_name": "TS1160 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A95",
+    "product_name": "TS2270 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A94",
+    "product_name": "TS2260 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A96",
+    "product_name": "TS2280 Tape Drive",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACA",
+    "product_name": "TS1090 Tape Drive",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACE",
+    "product_name": "TS1170 Tape Drive",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACK",
+    "product_name": "TS2290 Tape Drive",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACT",
+    "product_name": "LTO Ultrium 9 Tape Media",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0ACS",
+    "product_name": "Diamondback Tape Library",
+    "assistant": "Storage FlashSystem (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0A49",
+    "product_name": "TS7700",
+    "assistant": "DS8000 (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIS0AB6",
+    "product_name": "Spectrum Archive Enterprise and Library",
+    "assistant": "SAN (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A2N",
+    "product_name": "z16",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A20",
+    "product_name": "z15",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A08",
+    "product_name": "z14",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A27",
+    "product_name": "z14 ZR1",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A28",
+    "product_name": "z15 T02",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A2P",
+    "product_name": "z16 A02",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SIZ0A2S",
+    "product_name": "z16 AGZ",
+    "assistant": "Z Servers (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZXW",
+    "product_name": "AI System Services for IBM z/OS",
+    "assistant": "Z DevOps (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPL8",
+    "product_name": "Batchpipes for OS/390",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPMO",
+    "product_name": "Container Hosting Foundation for z/OS",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZO6",
+    "product_name": "DFSORT",
+    "assistant": "Z DevOps (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPLA",
+    "product_name": "Encryption Facility for z/OS",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPLT",
+    "product_name": "EREP",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPL6",
+    "product_name": "Host Command Facility",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPLV",
+    "product_name": "ICKDSF (Device Support Facilities)",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SAALK",
+    "product_name": "Machine Learning for z/OS",
+    "assistant": "z/OS (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZXV",
+    "product_name": "Python AI Toolkit for z/OS",
+    "assistant": "Z DevOps (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPM9",
+    "product_name": "TotalStorage XRC Performance Monitor",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPMA",
+    "product_name": "Transparent Data Migration Facility for z/OS",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPLJ",
+    "product_name": "XML Toolkit for z/OS",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZQ9",
+    "product_name": "z/OS",
+    "assistant": "z/OS (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZX2",
+    "product_name": "z/OS Data Set Mobility Facility",
+    "assistant": "Z DevOps (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZX1",
+    "product_name": "z/VM Agent for TDMF z/OS",
+    "assistant": "Z DevOps (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SSZA3",
+    "product_name": "zCX Foundation for Red Hat OpenShift",
+    "assistant": "MVS Linux (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCPM4",
+    "product_name": "Shopz",
+    "assistant": "AIX (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZAC",
+    "product_name": "watsonx Code Assistant for Z",
+    "assistant": "Z DevOps (Support)"
+  },
+  {
+    "owner": "TLS",
+    "slc_code": "SCZV1",
+    "product_name": "Explorer for z/OS",
+    "assistant": "Z DevOps (Support)"
+  }
+]
